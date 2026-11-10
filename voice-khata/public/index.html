@@ -1,0 +1,2695 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Voice Khata - Apni dukaan ka hisaab, bolkar rakhein</title>
+  <style>
+    :root {
+      --bg-color: #F5F0EB;
+      --primary: #2D5016;
+      --primary-dark: #1E380F;
+      --primary-light: #417320;
+      --accent-gold: #D4A017;
+      --accent-gold-dark: #B3860F;
+      --accent-light: #FFF9E6;
+      --text-dark: #222222;
+      --text-secondary: #5F5F5F;
+      --card-bg: #FFFFFF;
+      --card-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+      --card-shadow-hover: 0 6px 18px rgba(0, 0, 0, 0.12);
+      --user-bubble: #1E6091;
+      --ai-bubble: #EBF5ED;
+      --danger-red: #D32F2F;
+      --success-green: #2E7D32;
+      --warning-yellow: #F9A825;
+      --border-color: #E2DBD3;
+      --safe-bottom: env(safe-area-inset-bottom, 12px);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-dark);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+      user-select: none;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ==========================================================================
+       HEADER & NAVIGATION
+       ========================================================================== */
+    header {
+      background: var(--primary);
+      color: #FFFFFF;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+      z-index: 30;
+      flex-shrink: 0;
+    }
+
+    .header-title-box {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .brand-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: -0.2px;
+    }
+
+    .brand-tagline {
+      font-size: 0.72rem;
+      color: #E0EBD8;
+      font-weight: 400;
+      letter-spacing: 0.1px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Connection Status Dot */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.14);
+      padding: 5px 9px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      font-weight: 500;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    .status-badge:active {
+      background: rgba(255, 255, 255, 0.24);
+    }
+
+    .status-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #D32F2F; /* Default disconnected red */
+      box-shadow: 0 0 6px rgba(211, 47, 47, 0.6);
+      transition: background 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .status-dot.connected {
+      background: #00E676;
+      box-shadow: 0 0 8px #00E676;
+    }
+
+    .status-dot.recording {
+      background: #FFD600;
+      box-shadow: 0 0 10px #FFD600;
+      animation: pulse-yellow 1s infinite;
+    }
+
+    @keyframes pulse-yellow {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.3); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+
+    /* Ledger Button */
+    .btn-header-ledger {
+      background: var(--accent-gold);
+      color: #241A03;
+      border: none;
+      padding: 7px 12px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+      transition: transform 0.15s, background 0.15s;
+    }
+
+    .btn-header-ledger:active {
+      transform: scale(0.96);
+      background: var(--accent-gold-dark);
+    }
+
+    .btn-header-ledger svg {
+      width: 17px;
+      height: 17px;
+      fill: currentColor;
+    }
+
+    /* ==========================================================================
+       AI DISCLOSURE BANNER (Responsible AI Requirement)
+       ========================================================================== */
+    .ai-disclosure-banner {
+      background: #FFFDF5;
+      border-bottom: 1px solid #EEDBB2;
+      color: #6C5514;
+      padding: 6px 14px;
+      font-size: 0.72rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      z-index: 20;
+      flex-shrink: 0;
+    }
+
+    .ai-disclosure-content {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      line-height: 1.3;
+    }
+
+    .ai-disclosure-icon {
+      font-size: 0.95rem;
+      flex-shrink: 0;
+    }
+
+    .ai-disclosure-btn-close {
+      background: none;
+      border: none;
+      font-size: 1.1rem;
+      color: #927529;
+      cursor: pointer;
+      padding: 2px 6px;
+      line-height: 1;
+    }
+
+    /* ==========================================================================
+       MAIN CONTENT CONTAINER
+       ========================================================================== */
+    .main-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Conversation Area */
+    .chat-history {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 14px 14px 20px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      scroll-behavior: smooth;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Date Divider */
+    .chat-date-divider {
+      align-self: center;
+      background: #E8E2D9;
+      color: #6B645A;
+      font-size: 0.68rem;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-weight: 500;
+      margin: 4px 0;
+    }
+
+    /* User Message Bubble */
+    .msg-user {
+      align-self: flex-end;
+      max-width: 82%;
+      background: var(--user-bubble);
+      color: #FFFFFF;
+      padding: 10px 14px;
+      border-radius: 16px 16px 2px 16px;
+      box-shadow: 0 2px 6px rgba(30, 96, 145, 0.2);
+      position: relative;
+      word-break: break-word;
+      animation: bubble-in-right 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);
+    }
+
+    .msg-user .msg-text {
+      font-size: 0.92rem;
+      line-height: 1.38;
+      font-weight: 400;
+    }
+
+    .msg-user .msg-meta {
+      font-size: 0.65rem;
+      color: rgba(255, 255, 255, 0.75);
+      text-align: right;
+      margin-top: 4px;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* AI Response Bubble */
+    .msg-ai {
+      align-self: flex-start;
+      max-width: 85%;
+      background: var(--ai-bubble);
+      color: #17360A;
+      border: 1px solid #CDE5D2;
+      padding: 12px 14px;
+      border-radius: 16px 16px 16px 2px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+      position: relative;
+      word-break: break-word;
+      animation: bubble-in-left 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);
+    }
+
+    .msg-ai .ai-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 5px;
+      padding-bottom: 4px;
+      border-bottom: 1px dashed #B8D8C0;
+    }
+
+    .msg-ai .ai-tag {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .btn-speaker-replay {
+      background: none;
+      border: none;
+      color: var(--primary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      padding: 2px 4px;
+      border-radius: 4px;
+      transition: background 0.15s;
+    }
+
+    .btn-speaker-replay:active {
+      background: rgba(45, 80, 22, 0.15);
+    }
+
+    .btn-speaker-replay svg {
+      width: 14px;
+      height: 14px;
+      fill: currentColor;
+    }
+
+    .msg-ai .msg-text {
+      font-size: 0.92rem;
+      line-height: 1.4;
+      font-weight: 500;
+    }
+
+    .msg-ai .msg-meta {
+      font-size: 0.65rem;
+      color: #557750;
+      margin-top: 5px;
+      text-align: right;
+    }
+
+    /* Real-Time Live Transcript Bubble (Gray, italic while recording) */
+    .msg-transcript-live {
+      align-self: flex-start;
+      max-width: 86%;
+      background: #ECE7DF;
+      border: 1px dashed #B8AEA2;
+      color: #534D46;
+      padding: 10px 14px;
+      border-radius: 14px;
+      font-style: italic;
+      font-size: 0.88rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      animation: fadeIn 0.2s ease-in;
+    }
+
+    .transcript-pulse-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent-gold);
+      flex-shrink: 0;
+      animation: pulse-yellow 0.8s infinite;
+    }
+
+    /* Ledger Update Notification Card (Center, Gold / Yellow Card) */
+    .ledger-update-card {
+      align-self: center;
+      width: 100%;
+      max-width: 380px;
+      background: #FFFDF7;
+      border: 1.5px solid var(--accent-gold);
+      border-radius: 14px;
+      padding: 12px 14px;
+      box-shadow: 0 4px 14px rgba(212, 160, 23, 0.18);
+      animation: slide-up-card 0.3s cubic-bezier(0.1, 0.9, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .ledger-update-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--accent-gold), #F4CA44, var(--accent-gold));
+    }
+
+    .ledger-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .ledger-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .badge-udhaar {
+      background: #FEE8E7;
+      color: var(--danger-red);
+      border: 1px solid #F8B4B4;
+    }
+
+    .badge-jama {
+      background: #E8F5E9;
+      color: var(--success-green);
+      border: 1px solid #A5D6A7;
+    }
+
+    .ledger-card-time {
+      font-size: 0.68rem;
+      color: #8C8479;
+    }
+
+    .ledger-card-body {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 4px 0 8px 0;
+    }
+
+    .customer-info-box {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .customer-name {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-dark);
+    }
+
+    .customer-note {
+      font-size: 0.76rem;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    .amount-info-box {
+      text-align: right;
+    }
+
+    .tx-amount {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: var(--accent-gold-dark);
+      letter-spacing: -0.5px;
+    }
+
+    .tx-amount.red {
+      color: var(--danger-red);
+    }
+
+    .tx-amount.green {
+      color: var(--success-green);
+    }
+
+    .ledger-card-footer {
+      border-top: 1px dashed #E5DCBA;
+      padding-top: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.74rem;
+      color: #6C6253;
+    }
+
+    .balance-total-label {
+      font-weight: 500;
+    }
+
+    .balance-total-val {
+      font-weight: 700;
+      color: var(--text-dark);
+    }
+
+    /* Welcome / Suggestion Chips */
+    .suggestions-container {
+      margin: 10px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .suggestions-title {
+      font-size: 0.74rem;
+      color: #7A7266;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      text-align: center;
+    }
+
+    .chips-row {
+      display: flex;
+      gap: 7px;
+      overflow-x: auto;
+      padding: 4px 2px 8px 2px;
+      scrollbar-width: none;
+    }
+
+    .chips-row::-webkit-scrollbar {
+      display: none;
+    }
+
+    .suggestion-chip {
+      background: #FFFFFF;
+      border: 1px solid #D8CFC4;
+      border-radius: 18px;
+      padding: 6px 12px;
+      font-size: 0.78rem;
+      color: #38332B;
+      font-weight: 500;
+      white-space: nowrap;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      transition: all 0.15s ease;
+      flex-shrink: 0;
+    }
+
+    .suggestion-chip:active {
+      transform: scale(0.96);
+      background: #F1ECE3;
+      border-color: var(--primary);
+    }
+
+    /* Animations */
+    @keyframes bubble-in-right {
+      from { opacity: 0; transform: translateY(8px) scale(0.96); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes bubble-in-left {
+      from { opacity: 0; transform: translateY(8px) scale(0.96); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes slide-up-card {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    /* ==========================================================================
+       BOTTOM CONTROL BAR (Text Input + Large Mic Button)
+       ========================================================================== */
+    .bottom-controls-section {
+      background: #FFFFFF;
+      border-top: 1px solid var(--border-color);
+      padding: 10px 14px calc(10px + var(--safe-bottom)) 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: 0 -3px 12px rgba(0, 0, 0, 0.05);
+      z-index: 25;
+      flex-shrink: 0;
+    }
+
+    /* Text Input Row */
+    .text-input-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #F6F4EF;
+      border: 1px solid #D8D2C7;
+      border-radius: 24px;
+      padding: 4px 6px 4px 14px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .text-input-row:focus-within {
+      border-color: var(--primary);
+      background: #FFFFFF;
+      box-shadow: 0 0 0 3px rgba(45, 80, 22, 0.12);
+    }
+
+    .chat-text-input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      font-size: 0.9rem;
+      color: var(--text-dark);
+      outline: none;
+      padding: 6px 0;
+      min-width: 0;
+    }
+
+    .chat-text-input::placeholder {
+      color: #9E968B;
+      font-size: 0.85rem;
+    }
+
+    .btn-send-text {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #FFFFFF;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: transform 0.15s, background 0.15s;
+    }
+
+    .btn-send-text:active {
+      transform: scale(0.92);
+      background: var(--primary-dark);
+    }
+
+    .btn-send-text svg {
+      width: 17px;
+      height: 17px;
+      fill: currentColor;
+      margin-left: 2px;
+    }
+
+    /* Voice Center Area */
+    .voice-action-center {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 6px 0 6px;
+      position: relative;
+    }
+
+    .mode-toggle-group {
+      display: flex;
+      align-items: center;
+      background: #EFEBE4;
+      border-radius: 16px;
+      padding: 2px;
+      font-size: 0.68rem;
+      font-weight: 600;
+    }
+
+    .mode-btn {
+      border: none;
+      background: transparent;
+      color: #6C645A;
+      padding: 5px 9px;
+      border-radius: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .mode-btn.active {
+      background: #FFFFFF;
+      color: var(--primary);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    }
+
+    .voice-status-tip {
+      font-size: 0.72rem;
+      color: #7C7469;
+      font-weight: 500;
+      text-align: right;
+    }
+
+    /* Large Circular Mic Button */
+    .mic-button-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Pulsing Outer Rings during Recording */
+    .mic-ripple-ring {
+      position: absolute;
+      width: 74px;
+      height: 74px;
+      border-radius: 50%;
+      background: rgba(212, 160, 23, 0.35);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .is-recording .mic-ripple-ring.ring-1 {
+      animation: ripple-wave 1.6s infinite ease-out;
+    }
+
+    .is-recording .mic-ripple-ring.ring-2 {
+      animation: ripple-wave 1.6s infinite ease-out 0.5s;
+    }
+
+    @keyframes ripple-wave {
+      0% {
+        transform: scale(0.9);
+        opacity: 0.8;
+      }
+      100% {
+        transform: scale(1.7);
+        opacity: 0;
+      }
+    }
+
+    .btn-main-mic {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #37641B 0%, #234310 100%);
+      color: #FFFFFF;
+      border: 3px solid #FFFFFF;
+      box-shadow: 0 5px 18px rgba(45, 80, 22, 0.4);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      position: relative;
+      z-index: 2;
+      transition: all 0.2s cubic-bezier(0.1, 0.9, 0.2, 1);
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    .btn-main-mic:active,
+    .btn-main-mic.pressed {
+      transform: scale(0.94);
+    }
+
+    .btn-main-mic.recording {
+      background: linear-gradient(135deg, #D32F2F 0%, #B71C1C 100%);
+      border-color: #FFF275;
+      box-shadow: 0 0 24px rgba(211, 47, 47, 0.6);
+      animation: mic-button-pulse 1s infinite alternate;
+    }
+
+    @keyframes mic-button-pulse {
+      0% { transform: scale(1); }
+      100% { transform: scale(1.06); }
+    }
+
+    .btn-main-mic svg {
+      width: 32px;
+      height: 32px;
+      fill: #FFFFFF;
+      transition: transform 0.2s;
+    }
+
+    .btn-main-mic .mic-label {
+      font-size: 0.62rem;
+      font-weight: 700;
+      margin-top: 1px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    /* Audio Wave Indicator on Top of Mic when AI speaks */
+    .ai-speaking-toast {
+      position: fixed;
+      top: 60px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-20px);
+      background: rgba(33, 62, 16, 0.94);
+      color: #FFFFFF;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.76rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.3s cubic-bezier(0.1, 0.9, 0.2, 1);
+    }
+
+    .ai-speaking-toast.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .speaking-wave-bars {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      height: 12px;
+    }
+
+    .speaking-wave-bars span {
+      width: 2.5px;
+      height: 100%;
+      background: #FFD600;
+      border-radius: 2px;
+      animation: sound-bars 0.8s infinite ease-in-out alternate;
+    }
+
+    .speaking-wave-bars span:nth-child(2) { animation-delay: 0.2s; }
+    .speaking-wave-bars span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes sound-bars {
+      0% { height: 3px; }
+      100% { height: 12px; }
+    }
+
+    /* ==========================================================================
+       LEDGER SUMMARY PANEL (Collapsible Drawer)
+       ========================================================================== */
+    .ledger-drawer-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(2px);
+      z-index: 80;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    .ledger-drawer-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .ledger-drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 88%;
+      max-width: 420px;
+      background: var(--bg-color);
+      z-index: 85;
+      display: flex;
+      flex-direction: column;
+      box-shadow: -4px 0 24px rgba(0, 0, 0, 0.25);
+      transform: translateX(100%);
+      transition: transform 0.32s cubic-bezier(0.1, 0.9, 0.2, 1);
+    }
+
+    .ledger-drawer.open {
+      transform: translateX(0);
+    }
+
+    .drawer-header {
+      background: var(--primary);
+      color: #FFFFFF;
+      padding: 16px 16px 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .drawer-header-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-close-drawer {
+      background: rgba(255, 255, 255, 0.18);
+      border: none;
+      color: #FFFFFF;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+    }
+
+    .drawer-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* Today's Summary Card */
+    .today-summary-card {
+      background: #FFFFFF;
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: var(--card-shadow);
+      border: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .today-summary-title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #7A7266;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .summary-stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .stat-box {
+      background: #FAF8F4;
+      border-radius: 10px;
+      padding: 10px;
+      border: 1px solid #ECE6DB;
+    }
+
+    .stat-label {
+      font-size: 0.7rem;
+      color: #6C655A;
+      margin-bottom: 3px;
+    }
+
+    .stat-val {
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+    }
+
+    .stat-val.credit {
+      color: var(--danger-red);
+    }
+
+    .stat-val.payment {
+      color: var(--success-green);
+    }
+
+    .total-outstanding-bar {
+      background: #FFF9E6;
+      border: 1px solid var(--accent-gold);
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .total-outstanding-bar .lbl {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #685012;
+    }
+
+    .total-outstanding-bar .val {
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--accent-gold-dark);
+    }
+
+    /* Search Customers */
+    .customer-search-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #FFFFFF;
+      border: 1px solid #D8D2C7;
+      border-radius: 10px;
+      padding: 8px 12px;
+    }
+
+    .customer-search-box input {
+      border: none;
+      background: transparent;
+      outline: none;
+      width: 100%;
+      font-size: 0.88rem;
+      color: var(--text-dark);
+    }
+
+    .customer-search-box svg {
+      width: 16px;
+      height: 16px;
+      fill: #8E867A;
+      flex-shrink: 0;
+    }
+
+    /* Customer List */
+    .customers-list-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #554F45;
+      margin-top: 2px;
+    }
+
+    .customer-list-container {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .customer-card-item {
+      background: #FFFFFF;
+      border-radius: 12px;
+      padding: 12px 14px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+      border: 1px solid #ECE7DE;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .customer-card-item:active {
+      transform: scale(0.98);
+      background: #FAF7F2;
+      border-color: var(--accent-gold);
+    }
+
+    .cust-avatar-name {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .cust-avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: #E8EFE3;
+      color: var(--primary);
+      font-weight: 700;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .cust-details {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .cust-name {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-dark);
+    }
+
+    .cust-meta {
+      font-size: 0.72rem;
+      color: #8C8477;
+    }
+
+    .cust-balance-box {
+      text-align: right;
+    }
+
+    .cust-balance-amt {
+      font-size: 1.05rem;
+      font-weight: 800;
+    }
+
+    .cust-balance-amt.due {
+      color: var(--danger-red);
+    }
+
+    .cust-balance-amt.clear {
+      color: var(--success-green);
+    }
+
+    .cust-balance-tag {
+      font-size: 0.66rem;
+      font-weight: 600;
+      color: #8A8174;
+    }
+
+    /* ==========================================================================
+       CUSTOMER HISTORY MODAL
+       ========================================================================== */
+    .customer-modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(2px);
+      z-index: 90;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+    }
+
+    .customer-modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .customer-modal-card {
+      width: 100%;
+      max-width: 480px;
+      background: #FFFFFF;
+      border-radius: 20px 20px 0 0;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 -6px 25px rgba(0, 0, 0, 0.3);
+      transform: translateY(100%);
+      transition: transform 0.3s cubic-bezier(0.1, 0.9, 0.2, 1);
+    }
+
+    .customer-modal-overlay.active .customer-modal-card {
+      transform: translateY(0);
+    }
+
+    .cust-modal-header {
+      padding: 16px;
+      border-bottom: 1px solid #ECE7DF;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .cust-modal-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+    }
+
+    .cust-modal-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    .cust-modal-summary-banner {
+      background: #FFFDF5;
+      border: 1px solid var(--accent-gold);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .history-items-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .history-entry {
+      background: #FAF8F4;
+      border: 1px solid #EAE3D6;
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .history-entry-details {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .history-entry-date {
+      font-size: 0.68rem;
+      color: #8C8477;
+    }
+
+    .history-entry-note {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-dark);
+      margin-top: 1px;
+    }
+
+    .history-entry-amt {
+      font-size: 0.98rem;
+      font-weight: 800;
+    }
+
+    .cust-modal-footer {
+      padding: 12px 16px calc(12px + var(--safe-bottom)) 16px;
+      border-top: 1px solid #ECE7DF;
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-quick-voice-ask {
+      flex: 1;
+      background: var(--primary);
+      color: #FFFFFF;
+      border: none;
+      padding: 11px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .btn-quick-voice-ask:active {
+      background: var(--primary-dark);
+    }
+
+    /* Offline Toast */
+    .offline-banner {
+      background: #FF5252;
+      color: #FFFFFF;
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-align: center;
+      padding: 4px 10px;
+      display: none;
+      z-index: 40;
+    }
+
+    .offline-banner.active {
+      display: block;
+    }
+
+    /* Responsive Tweaks */
+    @media (min-width: 768px) {
+      .main-container {
+        max-width: 680px;
+        margin: 0 auto;
+        width: 100%;
+        border-left: 1px solid var(--border-color);
+        border-right: 1px solid var(--border-color);
+      }
+      .bottom-controls-section {
+        max-width: 680px;
+        margin: 0 auto;
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- OFFLINE WARNING -->
+  <div class="offline-banner" id="offline-banner">
+    ⚠️ Server se sampark toot gaya hai. Reconnecting...
+  </div>
+
+  <!-- HEADER -->
+  <header>
+    <div class="header-title-box">
+      <div class="brand-title">
+        <span>🎙️ Voice Khata</span>
+      </div>
+      <div class="brand-tagline">Apni dukaan ka hisaab, bolkar rakhein</div>
+    </div>
+
+    <div class="header-actions">
+      <!-- Status Badge -->
+      <div class="status-badge" id="status-badge" title="WebSocket Status">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-text">Connecting...</span>
+      </div>
+
+      <!-- Ledger Summary Button -->
+      <button class="btn-header-ledger" id="btn-toggle-ledger" title="Khata Bahi Kholein">
+        <!-- SVG Book/Ledger Icon -->
+        <svg viewBox="0 0 24 24">
+          <path d="M19 2H6c-1.2 0-2 .8-2 2v16c0 1.2.8 2 2 2h13c.6 0 1-.4 1-1V3c0-.6-.4-1-1-1zm-1 18H6c-.6 0-1-.4-1-1s.4-1 1-1h12v2zm0-4H6c-1.7 0-3 1.3-3 3V4c0-.6.4-1 1-1h14v13z"/>
+          <path d="M8 7h8v2H8zm0 4h6v2H8z"/>
+        </svg>
+        <span>Khata</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- AI DISCLOSURE BANNER (Responsible AI requirement) -->
+  <div class="ai-disclosure-banner" id="ai-banner">
+    <div class="ai-disclosure-content">
+      <span class="ai-disclosure-icon">🤖</span>
+      <span><strong>AI Sahayak:</strong> Yeh aawaz par aadharit AI assistant hai. Kripya zaroori len-den ki pushti karein.</span>
+    </div>
+    <button class="ai-disclosure-btn-close" id="btn-close-ai-banner" title="Chhipayein">&times;</button>
+  </div>
+
+  <!-- SPEAKING AUDIO TOAST -->
+  <div class="ai-speaking-toast" id="ai-speaking-toast">
+    <div class="speaking-wave-bars">
+      <span></span>
+      <span></span>
+      <span></span>
+    </div>
+    <span>AI Bol Raha Hai...</span>
+  </div>
+
+  <!-- MAIN CONTAINER -->
+  <div class="main-container">
+    
+    <!-- CHAT CONVERSATION AREA -->
+    <div class="chat-history" id="chat-history">
+      
+      <div class="chat-date-divider">Aaj ka Hisaab</div>
+
+      <!-- Welcome AI message -->
+      <div class="msg-ai">
+        <div class="ai-header">
+          <span class="ai-tag">
+            <span>✨</span> Voice Khata Sahayak
+          </span>
+          <button class="btn-speaker-replay" onclick="speakText('Namaste! Main aapka Voice Khata assistant hoon. Mic daba kar bolein jaise: Ramesh ko 200 rupaye udhaar do.')" title="Dobara sunein">
+            <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+          </button>
+        </div>
+        <div class="msg-text">
+          Namaste! 🙏 Main aapka dukaan sahayak hoon. Mic daba kar bolein ya neeche likhein:
+        </div>
+        <div class="msg-meta">Abhi</div>
+      </div>
+
+      <!-- Quick Suggestion Chips -->
+      <div class="suggestions-container" id="suggestions-box">
+        <div class="suggestions-title">Aise bol sakte hain</div>
+        <div class="chips-row">
+          <button class="suggestion-chip" onclick="handleChipClick('Ramesh ko 200 udhaar do')">
+            🗣️ "Ramesh ko ₹200 udhaar do"
+          </button>
+          <button class="suggestion-chip" onclick="handleChipClick('Suresh se 500 jama hue')">
+            💵 "Suresh se ₹500 jama"
+          </button>
+          <button class="suggestion-chip" onclick="handleChipClick('Sharma ji ka baki kitna hai?')">
+            ❓ "Sharma ji ka hisaab?"
+          </button>
+          <button class="suggestion-chip" onclick="handleChipClick('Aaj ka kul hisaab batao')">
+            📊 "Aaj ka kul hisaab"
+          </button>
+        </div>
+      </div>
+
+      <!-- Live Transcript (Shown dynamically during recording) -->
+      <div class="msg-transcript-live" id="live-transcript" style="display: none;">
+        <span class="transcript-pulse-dot"></span>
+        <span id="live-transcript-text">Sun raha hai... bolein</span>
+      </div>
+
+    </div>
+
+    <!-- BOTTOM CONTROLS SECTION -->
+    <div class="bottom-controls-section">
+      
+      <!-- Text Input Row (Alternative to voice) -->
+      <form class="text-input-row" id="text-input-form" onsubmit="handleTextSubmit(event)">
+        <input 
+          type="text" 
+          id="chat-text-input" 
+          class="chat-text-input" 
+          placeholder="Yahan likhein (e.g. Ramesh 200 udhar)..." 
+          autocomplete="off"
+        />
+        <button type="submit" class="btn-send-text" id="btn-send-text" title="Bhejein">
+          <!-- Send SVG Icon -->
+          <svg viewBox="0 0 24 24">
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+          </svg>
+        </button>
+      </form>
+
+      <!-- Center Voice Area -->
+      <div class="voice-action-center" id="voice-action-center">
+        
+        <!-- Push-to-Talk vs Tap-to-Toggle Mode Switcher -->
+        <div class="mode-toggle-group">
+          <button type="button" class="mode-btn active" id="mode-ptt" onclick="setRecordMode('ptt')" title="Daba kar rakhein">Hold</button>
+          <button type="button" class="mode-btn" id="mode-toggle" onclick="setRecordMode('toggle')" title="Ek baar tap karein">Tap</button>
+        </div>
+
+        <!-- Big Circular Mic Button with Wave Rings -->
+        <div class="mic-button-wrapper" id="mic-wrapper">
+          <div class="mic-ripple-ring ring-1"></div>
+          <div class="mic-ripple-ring ring-2"></div>
+          
+          <button 
+            type="button" 
+            class="btn-main-mic" 
+            id="btn-main-mic"
+            aria-label="Bolkar Hisaab Likhein"
+          >
+            <!-- Mic Idle SVG Icon -->
+            <svg id="icon-mic" viewBox="0 0 24 24">
+              <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+              <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+            </svg>
+
+            <!-- Stop Recording SVG Icon -->
+            <svg id="icon-stop" viewBox="0 0 24 24" style="display: none;">
+              <path d="M6 6h12v12H6z"/>
+            </svg>
+
+            <span class="mic-label" id="mic-label">Bolein</span>
+          </button>
+        </div>
+
+        <!-- Tip Text -->
+        <div class="voice-status-tip" id="voice-tip-text">
+          Hold to Talk
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- LEDGER SUMMARY DRAWER (Collapsible Panel) -->
+  <div class="ledger-drawer-overlay" id="ledger-drawer-overlay"></div>
+  <aside class="ledger-drawer" id="ledger-drawer">
+    
+    <div class="drawer-header">
+      <div class="drawer-header-title">
+        <!-- SVG Book Icon -->
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="#FFFFFF">
+          <path d="M19 2H6c-1.2 0-2 .8-2 2v16c0 1.2.8 2 2 2h13c.6 0 1-.4 1-1V3c0-.6-.4-1-1-1zm-1 18H6c-.6 0-1-.4-1-1s.4-1 1-1h12v2zm0-4H6c-1.7 0-3 1.3-3 3V4c0-.6.4-1 1-1h14v13z"/>
+        </svg>
+        <span>Khata Bahi (Ledger)</span>
+      </div>
+      <button class="btn-close-drawer" id="btn-close-ledger" title="Band karein">&times;</button>
+    </div>
+
+    <div class="drawer-body">
+      
+      <!-- Total Outstanding Bar -->
+      <div class="total-outstanding-bar">
+        <span class="lbl">Kul Udhaar Baki</span>
+        <span class="val" id="summary-total-outstanding">₹ 8,750</span>
+      </div>
+
+      <!-- Today's Total Summary -->
+      <div class="today-summary-card">
+        <div class="today-summary-title">Aaj Ka Len-Den (Today's Summary)</div>
+        <div class="summary-stats-grid">
+          <div class="stat-box">
+            <div class="stat-label">Aaj Ka Udhaar</div>
+            <div class="stat-val credit" id="summary-today-credit">₹ 1,450</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Aaj Ki Wasooli (Jama)</div>
+            <div class="stat-val payment" id="summary-today-payment">₹ 2,100</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Search Customers -->
+      <div class="customer-search-box">
+        <svg viewBox="0 0 24 24">
+          <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+        </svg>
+        <input 
+          type="text" 
+          id="customer-search-input" 
+          placeholder="Grahak ka naam khojein..." 
+          oninput="handleCustomerSearch(this.value)"
+        />
+      </div>
+
+      <!-- Customer List -->
+      <div class="customers-list-title">Sabhi Grahak (Customers)</div>
+      <div class="customer-list-container" id="customer-list-container">
+        <!-- Rendered dynamically via JavaScript -->
+      </div>
+
+    </div>
+
+  </aside>
+
+  <!-- CUSTOMER HISTORY MODAL -->
+  <div class="customer-modal-overlay" id="customer-modal-overlay">
+    <div class="customer-modal-card">
+      <div class="cust-modal-header">
+        <div>
+          <div class="cust-modal-title" id="cust-modal-name">Ramesh Bhai</div>
+          <div style="font-size: 0.74rem; color: #7F776B;" id="cust-modal-phone">+91 98765 43210</div>
+        </div>
+        <button class="btn-close-drawer" id="btn-close-cust-modal" style="background: #EFE9E0; color: #433D35;">&times;</button>
+      </div>
+
+      <div class="cust-modal-body">
+        <div class="cust-modal-summary-banner">
+          <div>
+            <div style="font-size: 0.72rem; color: #756023; font-weight: 600;">Kul Baki Rashi</div>
+            <div style="font-size: 1.4rem; font-weight: 800; color: var(--danger-red);" id="cust-modal-balance">₹ 750</div>
+          </div>
+          <button class="suggestion-chip" onclick="askAboutCustomerFromModal()" style="margin: 0; background: #FFFFFF;">
+            🎙️ Bolkar Poochein
+          </button>
+        </div>
+
+        <div style="font-size: 0.8rem; font-weight: 700; color: #524B40; margin-bottom: 8px;">
+          Pichhla Len-Den (History)
+        </div>
+
+        <div class="history-items-list" id="cust-modal-history">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+
+      <div class="cust-modal-footer">
+        <button class="btn-quick-voice-ask" onclick="askAboutCustomerFromModal()">
+          🎙️ Is Grahak Ka Hisaab Bolein
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT LOGIC -->
+  <script>
+    /**
+     * Voice Khata - Single Self-Contained Client Application
+     * Handles:
+     * 1. WebSocket communication & resilient auto-reconnect
+     * 2. Web Audio API + MediaRecorder 16-bit 16kHz PCM audio streaming
+     * 3. Base64 TTS decoding & audio playback queue
+     * 4. Real-time ledger summary and customer balance views
+     * 5. Push-to-Talk and Tap-to-Toggle modes with mobile tactile feel
+     */
+
+    // --- State Variables ---
+    let ws = null;
+    let wsReconnectTimer = null;
+    let reconnectDelay = 1000;
+    let isConnected = false;
+    let isRecording = false;
+    let recordMode = 'ptt'; // 'ptt' (hold) or 'toggle' (tap)
+    let pttPressStartTime = 0;
+    let pttHoldTimer = null;
+
+    // Web Audio Recording state
+    let audioContext = null;
+    let mediaStream = null;
+    let audioWorkletNode = null;
+    let scriptProcessor = null;
+    let mediaRecorder = null;
+    let recordedAudioChunks = [];
+    let pcmSampleBuffer = [];
+
+    // TTS Audio Playback state
+    let ttsAudioContext = null;
+    let audioPlaybackQueue = [];
+    let isAudioPlaying = false;
+
+    // Local Khata Database (Preloaded with sample data, synced via WebSocket)
+    let khataData = {
+      summary: {
+        totalOutstanding: 8750,
+        todayCredit: 1450,
+        todayPayment: 2100
+      },
+      customers: [
+        {
+          id: 'cust-1',
+          name: 'Ramesh Bhai',
+          phone: '+91 98765 43210',
+          balance: 750,
+          lastUpdated: '10:30 AM',
+          transactions: [
+            { date: '10 Nov, 10:30 AM', type: 'credit', note: 'Cheeni 2kg, Daal 1kg', amount: 200, balance: 750 },
+            { date: '08 Nov, 05:15 PM', type: 'payment', note: 'GPay Wasooli', amount: 500, balance: 550 },
+            { date: '05 Nov, 09:00 AM', type: 'credit', note: 'Sarson Tel 2L', amount: 350, balance: 1050 }
+          ]
+        },
+        {
+          id: 'cust-2',
+          name: 'Sharma Ji',
+          phone: '+91 98111 22334',
+          balance: 1420,
+          lastUpdated: '01:15 PM',
+          transactions: [
+            { date: '10 Nov, 01:15 PM', type: 'credit', note: 'Aata 10kg packet', amount: 420, balance: 1420 },
+            { date: '03 Nov, 11:00 AM', type: 'credit', note: 'Chawal Basmati 5kg', amount: 500, balance: 1000 },
+            { date: '01 Nov, 06:40 PM', type: 'payment', note: 'Cash Jama', amount: 1000, balance: 500 }
+          ]
+        },
+        {
+          id: 'cust-3',
+          name: 'Suresh Kirana',
+          phone: '+91 94123 98765',
+          balance: 0,
+          lastUpdated: '12:00 PM',
+          transactions: [
+            { date: '10 Nov, 12:00 PM', type: 'payment', note: 'Pura Hisaab Chukta', amount: 600, balance: 0 },
+            { date: '09 Nov, 04:30 PM', type: 'credit', note: 'Masala packets', amount: 600, balance: 600 }
+          ]
+        },
+        {
+          id: 'cust-4',
+          name: 'Pooja Didi',
+          phone: '+91 97654 32109',
+          balance: 380,
+          lastUpdated: 'Kal',
+          transactions: [
+            { date: '09 Nov, 06:20 PM', type: 'credit', note: 'Surf Excel, Sabun', amount: 180, balance: 380 },
+            { date: '06 Nov, 02:10 PM', type: 'credit', note: 'Doodh bread', amount: 200, balance: 200 }
+          ]
+        },
+        {
+          id: 'cust-5',
+          name: 'Mukesh Bhai Tea Stall',
+          phone: '+91 99887 76655',
+          balance: 6200,
+          lastUpdated: '10 Nov',
+          transactions: [
+            { date: '10 Nov, 08:30 AM', type: 'credit', note: 'Doodh 10L, Cheeni 5kg', amount: 830, balance: 6200 },
+            { date: '07 Nov, 07:00 PM', type: 'payment', note: 'Hafta Wasooli', amount: 2000, balance: 5370 }
+          ]
+        }
+      ]
+    };
+
+    let selectedCustomer = null;
+
+    // --- DOM Elements ---
+    const statusBadge = document.getElementById('status-badge');
+    const statusDot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+    const offlineBanner = document.getElementById('offline-banner');
+    const chatHistory = document.getElementById('chat-history');
+    const chatTextInput = document.getElementById('chat-text-input');
+    const liveTranscript = document.getElementById('live-transcript');
+    const liveTranscriptText = document.getElementById('live-transcript-text');
+    const btnMainMic = document.getElementById('btn-main-mic');
+    const micWrapper = document.getElementById('mic-wrapper');
+    const iconMic = document.getElementById('icon-mic');
+    const iconStop = document.getElementById('icon-stop');
+    const micLabel = document.getElementById('mic-label');
+    const voiceTipText = document.getElementById('voice-tip-text');
+    const modePttBtn = document.getElementById('mode-ptt');
+    const modeToggleBtn = document.getElementById('mode-toggle');
+    const aiSpeakingToast = document.getElementById('ai-speaking-toast');
+    const aiBanner = document.getElementById('ai-banner');
+    const btnCloseAiBanner = document.getElementById('btn-close-ai-banner');
+
+    // Drawer & Modal Elements
+    const btnToggleLedger = document.getElementById('btn-toggle-ledger');
+    const btnCloseLedger = document.getElementById('btn-close-ledger');
+    const ledgerDrawer = document.getElementById('ledger-drawer');
+    const ledgerDrawerOverlay = document.getElementById('ledger-drawer-overlay');
+    const customerListContainer = document.getElementById('customer-list-container');
+    const summaryTotalOutstanding = document.getElementById('summary-total-outstanding');
+    const summaryTodayCredit = document.getElementById('summary-today-credit');
+    const summaryTodayPayment = document.getElementById('summary-today-payment');
+
+    // Customer History Modal
+    const customerModalOverlay = document.getElementById('customer-modal-overlay');
+    const btnCloseCustModal = document.getElementById('btn-close-cust-modal');
+    const custModalName = document.getElementById('cust-modal-name');
+    const custModalPhone = document.getElementById('cust-modal-phone');
+    const custModalBalance = document.getElementById('cust-modal-balance');
+    const custModalHistory = document.getElementById('cust-modal-history');
+
+    // ==========================================================================
+    // 1. INITIALIZATION & UI LISTENERS
+    // ==========================================================================
+    window.addEventListener('DOMContentLoaded', () => {
+      initWebSocket();
+      renderCustomerList(khataData.customers);
+      updateSummaryUI();
+      setupMicButtonListeners();
+
+      // Close AI disclosure banner
+      if (btnCloseAiBanner) {
+        btnCloseAiBanner.addEventListener('click', () => {
+          aiBanner.style.display = 'none';
+        });
+      }
+
+      // Drawer open/close
+      btnToggleLedger.addEventListener('click', openLedgerDrawer);
+      btnCloseLedger.addEventListener('click', closeLedgerDrawer);
+      ledgerDrawerOverlay.addEventListener('click', closeLedgerDrawer);
+
+      // Customer Modal close
+      btnCloseCustModal.addEventListener('click', closeCustomerModal);
+      customerModalOverlay.addEventListener('click', (e) => {
+        if (e.target === customerModalOverlay) closeCustomerModal();
+      });
+
+      // Quick status reconnect on tap
+      statusBadge.addEventListener('click', () => {
+        if (!isConnected) {
+          reconnectDelay = 500;
+          initWebSocket();
+        }
+      });
+    });
+
+    // ==========================================================================
+    // 2. WEBSOCKET CONNECTION LIFECYCLE
+    // ==========================================================================
+    function getWebSocketUrl() {
+      const loc = window.location;
+      if (loc.protocol === 'file:' || !loc.host) {
+        // Fallback for standalone file open
+        return 'ws://localhost:3000/ws';
+      }
+      const wsProto = (loc.protocol === 'https:') ? 'wss:' : 'ws:';
+      return `${wsProto}//${loc.host}/ws`;
+    }
+
+    function initWebSocket() {
+      if (wsReconnectTimer) {
+        clearTimeout(wsReconnectTimer);
+        wsReconnectTimer = null;
+      }
+
+      const wsUrl = getWebSocketUrl();
+      setStatus('connecting', 'Connecting...');
+
+      try {
+        ws = new WebSocket(wsUrl);
+        ws.binaryType = 'arraybuffer';
+
+        ws.onopen = () => {
+          isConnected = true;
+          reconnectDelay = 1000;
+          offlineBanner.classList.remove('active');
+          setStatus('connected', 'Juda Hai');
+          console.log('[VoiceKhata] WebSocket Connected to', wsUrl);
+
+          // Request initial ledger data
+          sendJson({ type: 'get_ledger' });
+        };
+
+        ws.onmessage = (event) => {
+          handleIncomingMessage(event);
+        };
+
+        ws.onerror = (err) => {
+          console.warn('[VoiceKhata] WebSocket error:', err);
+        };
+
+        ws.onclose = () => {
+          isConnected = false;
+          setStatus('disconnected', 'Offline');
+          offlineBanner.classList.add('active');
+          console.log(`[VoiceKhata] Disconnected. Reconnecting in ${reconnectDelay}ms...`);
+          
+          wsReconnectTimer = setTimeout(() => {
+            reconnectDelay = Math.min(reconnectDelay * 1.5, 10000);
+            initWebSocket();
+          }, reconnectDelay);
+        };
+      } catch (e) {
+        console.error('[VoiceKhata] Failed to create WebSocket:', e);
+        setStatus('disconnected', 'Offline');
+      }
+    }
+
+    function setStatus(state, text) {
+      statusText.textContent = text;
+      statusDot.className = 'status-dot';
+      if (state === 'connected') {
+        statusDot.classList.add('connected');
+      } else if (state === 'recording') {
+        statusDot.classList.add('recording');
+      } else if (state === 'disconnected') {
+        // Red by default
+      }
+    }
+
+    function sendJson(payload) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(payload));
+      } else {
+        console.log('[VoiceKhata] WS not open. Offline handling:', payload);
+        // Fallback offline mock processing for smooth demo experience
+        handleOfflineMock(payload);
+      }
+    }
+
+    // ==========================================================================
+    // 3. INCOMING WEBSOCKET MESSAGE DISPATCHER
+    // ==========================================================================
+    function handleIncomingMessage(event) {
+      // Binary data received (e.g. raw audio stream)
+      if (event.data instanceof ArrayBuffer) {
+        playRawAudioBuffer(event.data);
+        return;
+      }
+
+      try {
+        const msg = JSON.parse(event.data);
+        const type = msg.type || msg.action || msg.event;
+
+        switch (type) {
+          case 'transcript':
+          case 'stt':
+            // Real-time or interim transcript
+            handleLiveTranscript(msg.text || msg.transcript, msg.isFinal);
+            break;
+
+          case 'response':
+          case 'assistant':
+          case 'message':
+            // AI textual reply
+            appendAIMessage(msg.text || msg.content || msg.message);
+            // If audio included with response
+            if (msg.audio || msg.tts_audio) {
+              queueAudioPlayback(msg.audio || msg.tts_audio);
+            }
+            break;
+
+          case 'audio':
+          case 'tts':
+            // Direct TTS audio payload
+            if (msg.audio || msg.data) {
+              queueAudioPlayback(msg.audio || msg.data);
+            }
+            break;
+
+          case 'ledger_update':
+          case 'transaction':
+            // Ledger entry created / updated
+            handleLedgerUpdate(msg.transaction, msg.summary);
+            break;
+
+          case 'ledger_summary':
+          case 'ledger_data':
+            // Sync ledger data
+            if (msg.customers) khataData.customers = msg.customers;
+            if (msg.summary) khataData.summary = msg.summary;
+            renderCustomerList(khataData.customers);
+            updateSummaryUI();
+            break;
+
+          case 'customer_history':
+            displayCustomerHistoryModal(msg.customer, msg.transactions);
+            break;
+
+          case 'error':
+            appendAIMessage(`⚠️ ${msg.message || 'Kuch takneeki kharabi aayi hai.'}`);
+            break;
+
+          default:
+            console.log('[VoiceKhata] Unhandled message:', msg);
+        }
+      } catch (err) {
+        console.error('[VoiceKhata] Error parsing message:', err, event.data);
+      }
+    }
+
+    function handleLiveTranscript(text, isFinal) {
+      if (!text) return;
+      liveTranscript.style.display = 'flex';
+      liveTranscriptText.textContent = text;
+      scrollToBottom();
+
+      if (isFinal) {
+        // Convert to finalized user bubble
+        appendUserMessage(text);
+        liveTranscript.style.display = 'none';
+        liveTranscriptText.textContent = 'Sun raha hai... bolein';
+      }
+    }
+
+    function handleLedgerUpdate(tx, summary) {
+      if (!tx) return;
+
+      // Update local state
+      applyTransactionToLocalKhata(tx);
+
+      if (summary) {
+        khataData.summary = summary;
+      }
+      updateSummaryUI();
+      renderCustomerList(khataData.customers);
+
+      // Render gold ledger update card in conversation area
+      appendLedgerCard(tx);
+    }
+
+    // ==========================================================================
+    // 4. AUDIO CAPTURE: Web Audio API & MediaRecorder (16kHz 16-bit PCM)
+    // ==========================================================================
+    async function startRecording() {
+      if (isRecording) return;
+
+      try {
+        // Initialize AudioContext on user gesture
+        if (!audioContext || audioContext.state === 'closed') {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          audioContext = new AudioContextClass();
+        }
+        if (audioContext.state === 'suspended') {
+          await audioContext.resume();
+        }
+
+        // Haptic feedback
+        if (navigator.vibrate) navigator.vibrate(40);
+
+        // Request microphone
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1,
+            sampleRate: 16000,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
+
+        isRecording = true;
+        pcmSampleBuffer = [];
+        recordedAudioChunks = [];
+
+        // UI State -> Recording
+        updateMicUI(true);
+        setStatus('recording', 'Recording...');
+        liveTranscript.style.display = 'flex';
+        liveTranscriptText.textContent = 'Sun raha hai... bolein';
+        scrollToBottom();
+
+        // Send recording started control message
+        sendJson({
+          type: 'audio_start',
+          sampleRate: 16000,
+          format: 'pcm16_mono'
+        });
+
+        // Set up Web Audio API PCM pipeline
+        setupPcmStreaming(mediaStream);
+
+        // Parallel fallback: MediaRecorder
+        setupMediaRecorder(mediaStream);
+
+      } catch (err) {
+        console.error('[VoiceKhata] Mic access failed:', err);
+        isRecording = false;
+        updateMicUI(false);
+        setStatus(isConnected ? 'connected' : 'disconnected', isConnected ? 'Juda Hai' : 'Offline');
+        appendAIMessage('Microphone ki permission nahi mili. Kripya browser setting mein mic allow karein ya text likhein.');
+      }
+    }
+
+    function setupPcmStreaming(stream) {
+      const source = audioContext.createMediaStreamSource(stream);
+      const bufferSize = 4096;
+      // ScriptProcessor is widely supported across mobile Chrome/Webview
+      scriptProcessor = audioContext.createScriptProcessor(bufferSize, 1, 1);
+
+      const inputSampleRate = audioContext.sampleRate;
+      const targetSampleRate = 16000;
+
+      scriptProcessor.onaudioprocess = (e) => {
+        if (!isRecording) return;
+        const inputData = e.inputBuffer.getChannelData(0);
+
+        // Downsample to 16kHz if needed
+        const resampled = downsampleBuffer(inputData, inputSampleRate, targetSampleRate);
+        const pcm16 = floatTo16BitPCM(resampled);
+
+        // Accumulate for complete WAV payload
+        pcmSampleBuffer.push(pcm16);
+
+        // Stream binary frames over WebSocket
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(pcm16.buffer);
+        }
+      };
+
+      source.connect(scriptProcessor);
+      scriptProcessor.connect(audioContext.destination);
+    }
+
+    function setupMediaRecorder(stream) {
+      try {
+        let mimeType = 'audio/webm;codecs=opus';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = ''; // Let browser choose default
+        }
+        mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) {
+            recordedAudioChunks.push(e.data);
+          }
+        };
+        mediaRecorder.start(250); // 250ms time slices
+      } catch (e) {
+        console.warn('[VoiceKhata] MediaRecorder not initialized:', e);
+      }
+    }
+
+    function stopRecording() {
+      if (!isRecording) return;
+      isRecording = false;
+
+      // Haptic feedback
+      if (navigator.vibrate) navigator.vibrate(30);
+
+      // Stop Audio Processing
+      if (scriptProcessor) {
+        scriptProcessor.disconnect();
+        scriptProcessor = null;
+      }
+
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        try { mediaRecorder.stop(); } catch(e){}
+      }
+
+      // Stop Tracks
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+        mediaStream = null;
+      }
+
+      // UI State -> Idle
+      updateMicUI(false);
+      setStatus(isConnected ? 'connected' : 'disconnected', isConnected ? 'Juda Hai' : 'Offline');
+      liveTranscriptText.textContent = 'Aawaz process ho rahi hai...';
+
+      // Send audio completion payload
+      finalizeAudioAndSend();
+    }
+
+    function finalizeAudioAndSend() {
+      // 1. Build 16kHz mono WAV from accumulated PCM
+      const fullPcmLength = pcmSampleBuffer.reduce((acc, curr) => acc + curr.length, 0);
+      const mergedPcm = new Int16Array(fullPcmLength);
+      let offset = 0;
+      for (const chunk of pcmSampleBuffer) {
+        mergedPcm.set(chunk, offset);
+        offset += chunk.length;
+      }
+
+      const wavBlob = encodeWav(mergedPcm, 16000);
+
+      // Convert WAV to base64
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64Data = reader.result.split(',')[1];
+        
+        // Notify server that audio ended
+        sendJson({
+          type: 'audio_end',
+          format: 'wav',
+          sampleRate: 16000,
+          audio: base64Data
+        });
+
+        // If offline, simulate recognized command
+        if (!isConnected) {
+          simulateOfflineVoiceRecognition();
+        }
+      };
+      reader.readAsDataURL(wavBlob);
+    }
+
+    // --- Audio Utilities: Downsample & WAV Header ---
+    function downsampleBuffer(buffer, sampleRate, outSampleRate) {
+      if (outSampleRate === sampleRate) {
+        return buffer;
+      }
+      if (outSampleRate > sampleRate) {
+        return buffer;
+      }
+      const sampleRateRatio = sampleRate / outSampleRate;
+      const newLength = Math.round(buffer.length / sampleRateRatio);
+      const result = new Float32Array(newLength);
+      let offsetResult = 0;
+      let offsetBuffer = 0;
+      while (offsetResult < result.length) {
+        const nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRateRatio);
+        let accum = 0;
+        let count = 0;
+        for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
+          accum += buffer[i];
+          count++;
+        }
+        result[offsetResult] = count > 0 ? accum / count : 0;
+        offsetResult++;
+        offsetBuffer = nextOffsetBuffer;
+      }
+      return result;
+    }
+
+    function floatTo16BitPCM(input) {
+      const output = new Int16Array(input.length);
+      for (let i = 0; i < input.length; i++) {
+        const s = Math.max(-1, Math.min(1, input[i]));
+        output[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+      }
+      return output;
+    }
+
+    function encodeWav(samples, sampleRate) {
+      const buffer = new ArrayBuffer(44 + samples.length * 2);
+      const view = new DataView(buffer);
+
+      function writeString(view, offset, string) {
+        for (let i = 0; i < string.length; i++) {
+          view.setUint8(offset + i, string.charCodeAt(i));
+        }
+      }
+
+      writeString(view, 0, 'RIFF');
+      view.setUint32(4, 36 + samples.length * 2, true);
+      writeString(view, 8, 'WAVE');
+      writeString(view, 12, 'fmt ');
+      view.setUint32(16, 16, true); // SubChunk1Size (16 for PCM)
+      view.setUint16(20, 1, true);  // AudioFormat (1 for PCM)
+      view.setUint16(22, 1, true);  // NumChannels (1 mono)
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * 2, true); // ByteRate (SampleRate * NumChannels * BitsPerSample/8)
+      view.setUint16(32, 2, true);  // BlockAlign (NumChannels * BitsPerSample/8)
+      view.setUint16(34, 16, true); // BitsPerSample
+      writeString(view, 36, 'data');
+      view.setUint32(40, samples.length * 2, true);
+
+      // Write PCM samples
+      let index = 44;
+      for (let i = 0; i < samples.length; i++, index += 2) {
+        view.setInt16(index, samples[i], true);
+      }
+
+      return new Blob([view], { type: 'audio/wav' });
+    }
+
+    // ==========================================================================
+    // 5. AUDIO PLAYBACK (TTS Decoding & Web Audio Queue)
+    // ==========================================================================
+    function queueAudioPlayback(base64Audio) {
+      if (!base64Audio) return;
+      audioPlaybackQueue.push(base64Audio);
+      if (!isAudioPlaying) {
+        playNextAudioInQueue();
+      }
+    }
+
+    async function playNextAudioInQueue() {
+      if (audioPlaybackQueue.length === 0) {
+        isAudioPlaying = false;
+        aiSpeakingToast.classList.remove('visible');
+        return;
+      }
+
+      isAudioPlaying = true;
+      aiSpeakingToast.classList.add('visible');
+      const base64Audio = audioPlaybackQueue.shift();
+
+      try {
+        if (!ttsAudioContext || ttsAudioContext.state === 'closed') {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          ttsAudioContext = new AudioContextClass();
+        }
+        if (ttsAudioContext.state === 'suspended') {
+          await ttsAudioContext.resume();
+        }
+
+        const rawData = base64ToArrayBuffer(base64Audio);
+        let audioBuffer;
+
+        try {
+          audioBuffer = await ttsAudioContext.decodeAudioData(rawData);
+        } catch (decodeErr) {
+          // If raw PCM16 was sent without WAV header, wrap it in a WAV header
+          const wavWithHeader = wrapRawPcmInWav(new Uint8Array(rawData), 16000);
+          audioBuffer = await ttsAudioContext.decodeAudioData(wavWithHeader.buffer);
+        }
+
+        const source = ttsAudioContext.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(ttsAudioContext.destination);
+
+        source.onended = () => {
+          playNextAudioInQueue();
+        };
+
+        source.start(0);
+
+      } catch (err) {
+        console.error('[VoiceKhata] Audio playback error:', err);
+        playNextAudioInQueue();
+      }
+    }
+
+    function playRawAudioBuffer(arrayBuffer) {
+      // Direct binary audio chunk playback
+      const base64 = arrayBufferToBase64(arrayBuffer);
+      queueAudioPlayback(base64);
+    }
+
+    function base64ToArrayBuffer(base64) {
+      const binaryString = window.atob(base64);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      return bytes.buffer;
+    }
+
+    function arrayBufferToBase64(buffer) {
+      let binary = '';
+      const bytes = new Uint8Array(buffer);
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return window.btoa(binary);
+    }
+
+    function wrapRawPcmInWav(pcmBytes, sampleRate) {
+      const pcm16 = new Int16Array(pcmBytes.buffer, pcmBytes.byteOffset, pcmBytes.byteLength / 2);
+      const blob = encodeWav(pcm16, sampleRate);
+      return blob;
+    }
+
+    // Fallback browser speech synthesis for testing/offline
+    function speakText(text) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'hi-IN';
+        utterance.rate = 1.0;
+        aiSpeakingToast.classList.add('visible');
+        utterance.onend = () => aiSpeakingToast.classList.remove('visible');
+        window.speechSynthesis.speak(utterance);
+      }
+    }
+
+    // ==========================================================================
+    // 6. MIC BUTTON: PUSH-TO-TALK & TAP-TO-TOGGLE HANDLERS
+    // ==========================================================================
+    function setRecordMode(mode) {
+      recordMode = mode;
+      if (mode === 'ptt') {
+        modePttBtn.classList.add('active');
+        modeToggleBtn.classList.remove('active');
+        voiceTipText.textContent = 'Hold to Talk';
+      } else {
+        modeToggleBtn.classList.add('active');
+        modePttBtn.classList.remove('active');
+        voiceTipText.textContent = 'Tap to Speak';
+      }
+    }
+
+    function updateMicUI(recording) {
+      if (recording) {
+        btnMainMic.classList.add('recording');
+        micWrapper.classList.add('is-recording');
+        iconMic.style.display = 'none';
+        iconStop.style.display = 'block';
+        micLabel.textContent = 'Stop';
+        voiceTipText.textContent = 'Recording...';
+      } else {
+        btnMainMic.classList.remove('recording');
+        micWrapper.classList.remove('is-recording');
+        iconMic.style.display = 'block';
+        iconStop.style.display = 'none';
+        micLabel.textContent = 'Bolein';
+        voiceTipText.textContent = (recordMode === 'ptt') ? 'Hold to Talk' : 'Tap to Speak';
+      }
+    }
+
+    function setupMicButtonListeners() {
+      // Touch/pointer events for smooth mobile feel
+      btnMainMic.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        pttPressStartTime = Date.now();
+
+        if (recordMode === 'ptt') {
+          // Push-to-Talk: Start immediately
+          startRecording();
+        } else {
+          // Tap-to-Toggle mode
+          if (!isRecording) {
+            startRecording();
+          } else {
+            stopRecording();
+          }
+        }
+      });
+
+      const handlePointerRelease = (e) => {
+        if (recordMode === 'ptt') {
+          const duration = Date.now() - pttPressStartTime;
+          if (isRecording) {
+            // If held longer than 300ms, stop on release
+            stopRecording();
+          }
+        }
+      };
+
+      btnMainMic.addEventListener('pointerup', handlePointerRelease);
+      btnMainMic.addEventListener('pointercancel', handlePointerRelease);
+      btnMainMic.addEventListener('mouseleave', () => {
+        if (recordMode === 'ptt' && isRecording) {
+          stopRecording();
+        }
+      });
+    }
+
+    // ==========================================================================
+    // 7. TEXT INPUT & SUGGESTIONS HANDLER
+    // ==========================================================================
+    function handleTextSubmit(e) {
+      e.preventDefault();
+      const text = chatTextInput.value.trim();
+      if (!text) return;
+
+      appendUserMessage(text);
+      chatTextInput.value = '';
+
+      // Send to server
+      sendJson({
+        type: 'text',
+        text: text
+      });
+    }
+
+    function handleChipClick(sampleText) {
+      chatTextInput.value = sampleText;
+      handleTextSubmit(new Event('submit'));
+    }
+
+    // ==========================================================================
+    // 8. CHAT MESSAGE RENDERING
+    // ==========================================================================
+    function appendUserMessage(text) {
+      const bubble = document.createElement('div');
+      bubble.className = 'msg-user';
+      bubble.innerHTML = `
+        <div class="msg-text">${escapeHtml(text)}</div>
+        <div class="msg-meta">
+          <span>${getCurrentTimeStr()}</span>
+          <span>✓</span>
+        </div>
+      `;
+      chatHistory.insertBefore(bubble, liveTranscript);
+      scrollToBottom();
+    }
+
+    function appendAIMessage(text) {
+      const bubble = document.createElement('div');
+      bubble.className = 'msg-ai';
+      bubble.innerHTML = `
+        <div class="ai-header">
+          <span class="ai-tag"><span>✨</span> Voice Khata</span>
+          <button class="btn-speaker-replay" title="Sunhein">
+            <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+          </button>
+        </div>
+        <div class="msg-text">${escapeHtml(text)}</div>
+        <div class="msg-meta">${getCurrentTimeStr()}</div>
+      `;
+
+      // Attach audio replay listener
+      const replayBtn = bubble.querySelector('.btn-speaker-replay');
+      replayBtn.addEventListener('click', () => speakText(text));
+
+      chatHistory.insertBefore(bubble, liveTranscript);
+      scrollToBottom();
+    }
+
+    function appendLedgerCard(tx) {
+      const isUdhaar = (tx.type === 'credit' || tx.type === 'udhaar');
+      const badgeClass = isUdhaar ? 'badge-udhaar' : 'badge-jama';
+      const badgeText = isUdhaar ? '🔴 Udhaar (Credit)' : '🟢 Jama (Payment)';
+      const amountSign = isUdhaar ? '+' : '-';
+      const amountColor = isUdhaar ? 'red' : 'green';
+
+      const card = document.createElement('div');
+      card.className = 'ledger-update-card';
+      card.innerHTML = `
+        <div class="ledger-card-header">
+          <span class="ledger-badge ${badgeClass}">${badgeText}</span>
+          <span class="ledger-card-time">${tx.date || getCurrentTimeStr()}</span>
+        </div>
+        <div class="ledger-card-body">
+          <div class="customer-info-box">
+            <span class="customer-name">${escapeHtml(tx.customer || tx.name || 'Grahak')}</span>
+            <span class="customer-note">${escapeHtml(tx.note || tx.items || 'Khata entry')}</span>
+          </div>
+          <div class="amount-info-box">
+            <span class="tx-amount ${amountColor}">${amountSign}₹${Number(tx.amount).toLocaleString('en-IN')}</span>
+          </div>
+        </div>
+        <div class="ledger-card-footer">
+          <span class="balance-total-label">Naya Kul Baki:</span>
+          <span class="balance-total-val">₹${Number(tx.balance || 0).toLocaleString('en-IN')}</span>
+        </div>
+      `;
+
+      chatHistory.insertBefore(card, liveTranscript);
+      scrollToBottom();
+    }
+
+    function scrollToBottom() {
+      setTimeout(() => {
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+      }, 50);
+    }
+
+    // ==========================================================================
+    // 9. LEDGER SUMMARY & CUSTOMER MANAGEMENT
+    // ==========================================================================
+    function updateSummaryUI() {
+      summaryTotalOutstanding.textContent = `₹ ${khataData.summary.totalOutstanding.toLocaleString('en-IN')}`;
+      summaryTodayCredit.textContent = `₹ ${khataData.summary.todayCredit.toLocaleString('en-IN')}`;
+      summaryTodayPayment.textContent = `₹ ${khataData.summary.todayPayment.toLocaleString('en-IN')}`;
+    }
+
+    function renderCustomerList(customers) {
+      customerListContainer.innerHTML = '';
+
+      if (customers.length === 0) {
+        customerListContainer.innerHTML = `
+          <div style="text-align: center; padding: 20px; color: #8A8174; font-size: 0.85rem;">
+            Koi grahak nahi mila.
+          </div>
+        `;
+        return;
+      }
+
+      customers.forEach(cust => {
+        const item = document.createElement('div');
+        item.className = 'customer-card-item';
+        const isDue = cust.balance > 0;
+        const balanceClass = isDue ? 'due' : 'clear';
+        const balanceLabel = isDue ? 'Baki' : 'Chukta';
+        const initial = cust.name ? cust.name.charAt(0).toUpperCase() : 'G';
+
+        item.innerHTML = `
+          <div class="cust-avatar-name">
+            <div class="cust-avatar">${initial}</div>
+            <div class="cust-details">
+              <span class="cust-name">${escapeHtml(cust.name)}</span>
+              <span class="cust-meta">${escapeHtml(cust.lastUpdated || 'Aaj')}</span>
+            </div>
+          </div>
+          <div class="cust-balance-box">
+            <div class="cust-balance-amt ${balanceClass}">₹ ${cust.balance.toLocaleString('en-IN')}</div>
+            <div class="cust-balance-tag">${balanceLabel}</div>
+          </div>
+        `;
+
+        item.addEventListener('click', () => {
+          openCustomerModal(cust);
+        });
+
+        customerListContainer.appendChild(item);
+      });
+    }
+
+    function handleCustomerSearch(query) {
+      const q = query.toLowerCase().trim();
+      if (!q) {
+        renderCustomerList(khataData.customers);
+        return;
+      }
+      const filtered = khataData.customers.filter(c => 
+        c.name.toLowerCase().includes(q) || (c.phone && c.phone.includes(q))
+      );
+      renderCustomerList(filtered);
+    }
+
+    function openLedgerDrawer() {
+      ledgerDrawerOverlay.classList.add('active');
+      ledgerDrawer.classList.add('open');
+    }
+
+    function closeLedgerDrawer() {
+      ledgerDrawerOverlay.classList.remove('active');
+      ledgerDrawer.classList.remove('open');
+    }
+
+    // Customer History Modal
+    function openCustomerModal(cust) {
+      selectedCustomer = cust;
+      custModalName.textContent = cust.name;
+      custModalPhone.textContent = cust.phone || 'Dukaan Grahak';
+      custModalBalance.textContent = `₹ ${cust.balance.toLocaleString('en-IN')}`;
+
+      renderCustomerHistoryList(cust.transactions || []);
+      customerModalOverlay.classList.add('active');
+    }
+
+    function closeCustomerModal() {
+      customerModalOverlay.classList.remove('active');
+      selectedCustomer = null;
+    }
+
+    function renderCustomerHistoryList(history) {
+      custModalHistory.innerHTML = '';
+      if (!history || history.length === 0) {
+        custModalHistory.innerHTML = `
+          <div style="text-align: center; padding: 15px; color: #8A8174; font-size: 0.8rem;">
+            Koi pichhla len-den darz nahi hai.
+          </div>
+        `;
+        return;
+      }
+
+      history.forEach(tx => {
+        const isCredit = (tx.type === 'credit' || tx.type === 'udhaar');
+        const sign = isCredit ? '+' : '-';
+        const color = isCredit ? 'var(--danger-red)' : 'var(--success-green)';
+
+        const row = document.createElement('div');
+        row.className = 'history-entry';
+        row.innerHTML = `
+          <div class="history-entry-details">
+            <span class="history-entry-date">${escapeHtml(tx.date || 'Aaj')}</span>
+            <span class="history-entry-note">${escapeHtml(tx.note || (isCredit ? 'Udhaar Saman' : 'Jama Rashi'))}</span>
+          </div>
+          <div class="history-entry-amt" style="color: ${color}">
+            ${sign}₹ ${Number(tx.amount).toLocaleString('en-IN')}
+          </div>
+        `;
+        custModalHistory.appendChild(row);
+      });
+    }
+
+    function askAboutCustomerFromModal() {
+      if (!selectedCustomer) return;
+      const question = `${selectedCustomer.name} ka kitna hisaab baki hai?`;
+      closeCustomerModal();
+      closeLedgerDrawer();
+      chatTextInput.value = question;
+      handleTextSubmit(new Event('submit'));
+    }
+
+    // ==========================================================================
+    // 10. LOCAL KHATA DATABASE HELPER & OFFLINE SIMULATION
+    // ==========================================================================
+    function applyTransactionToLocalKhata(tx) {
+      let cust = khataData.customers.find(c => c.name.toLowerCase() === (tx.customer || tx.name).toLowerCase());
+      const amount = Number(tx.amount) || 0;
+      const isCredit = (tx.type === 'credit' || tx.type === 'udhaar');
+
+      if (!cust) {
+        // Create new customer
+        cust = {
+          id: 'cust-' + Date.now(),
+          name: tx.customer || tx.name,
+          phone: tx.phone || '+91 9XXXX XXXXX',
+          balance: 0,
+          lastUpdated: 'Abhi',
+          transactions: []
+        };
+        khataData.customers.unshift(cust);
+      }
+
+      if (isCredit) {
+        cust.balance += amount;
+        khataData.summary.todayCredit += amount;
+        khataData.summary.totalOutstanding += amount;
+      } else {
+        cust.balance = Math.max(0, cust.balance - amount);
+        khataData.summary.todayPayment += amount;
+        khataData.summary.totalOutstanding = Math.max(0, khataData.summary.totalOutstanding - amount);
+      }
+
+      cust.lastUpdated = 'Abhi';
+      tx.balance = cust.balance;
+
+      cust.transactions.unshift({
+        date: 'Aaj, ' + getCurrentTimeStr(),
+        type: isCredit ? 'credit' : 'payment',
+        note: tx.note || tx.items || 'Khata entry',
+        amount: amount,
+        balance: cust.balance
+      });
+    }
+
+    // Handles text commands locally when server is disconnected
+    function handleOfflineMock(payload) {
+      if (payload.type === 'text') {
+        const text = payload.text;
+        setTimeout(() => {
+          processNaturalLanguageKhata(text);
+        }, 350);
+      }
+    }
+
+    function simulateOfflineVoiceRecognition() {
+      setTimeout(() => {
+        liveTranscript.style.display = 'none';
+        const sampleCommands = [
+          'Ramesh ko 200 udhaar do',
+          'Suresh se 500 jama hue',
+          'Sharma ji ka hisaab batao'
+        ];
+        const randomCmd = sampleCommands[Math.floor(Math.random() * sampleCommands.length)];
+        appendUserMessage(randomCmd);
+        processNaturalLanguageKhata(randomCmd);
+      }, 700);
+    }
+
+    function processNaturalLanguageKhata(text) {
+      const lower = text.toLowerCase();
+      
+      // Match amount: e.g. 200, 500, ₹200
+      const amtMatch = text.match(/(\d+)/);
+      const amount = amtMatch ? parseInt(amtMatch[1], 10) : null;
+
+      // Extract customer name (Ramesh, Suresh, Sharma, etc.)
+      let customerName = 'Grahak';
+      for (const c of khataData.customers) {
+        if (lower.includes(c.name.toLowerCase().split(' ')[0])) {
+          customerName = c.name;
+          break;
+        }
+      }
+
+      if (lower.includes('udhar') || lower.includes('udhaar') || lower.includes('credit') || lower.includes('de')) {
+        const amt = amount || 200;
+        const tx = {
+          customer: customerName,
+          type: 'credit',
+          amount: amt,
+          note: 'Voice se darz kiya gaya udhaar'
+        };
+        handleLedgerUpdate(tx);
+        const reply = `${customerName} ke khate mein ₹${amt} udhaar jod diye gaye hain.`;
+        appendAIMessage(reply);
+        speakText(reply);
+
+      } else if (lower.includes('jama') || lower.includes('payment') || lower.includes('mile') || lower.includes('diye')) {
+        const amt = amount || 500;
+        const tx = {
+          customer: customerName,
+          type: 'payment',
+          amount: amt,
+          note: 'Voice se jama ki gayi rashi'
+        };
+        handleLedgerUpdate(tx);
+        const reply = `${customerName} se ₹${amt} jama darz kar liye gaye hain.`;
+        appendAIMessage(reply);
+        speakText(reply);
+
+      } else if (lower.includes('kitna') || lower.includes('hisaab') || lower.includes('baki') || lower.includes('balance')) {
+        const cust = khataData.customers.find(c => c.name.toLowerCase().includes(customerName.toLowerCase()));
+        const baki = cust ? cust.balance : 0;
+        const reply = `${customerName} ka kul ₹${baki} baki hai.`;
+        appendAIMessage(reply);
+        speakText(reply);
+
+      } else {
+        const reply = `Sun liya: "${text}". Khate mein entry karne ke liye bole: "[Naam] ko [Rashi] udhaar" ya "[Naam] se [Rashi] jama".`;
+        appendAIMessage(reply);
+        speakText(reply);
+      }
+    }
+
+    // --- Helpers ---
+    function getCurrentTimeStr() {
+      const now = new Date();
+      return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+  </script>
+</body>
+</html>
