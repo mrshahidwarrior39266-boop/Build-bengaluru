@@ -1278,6 +1278,36 @@
     .btn-install.available { display: inline-flex; }
     .btn-install svg { width: 14px; height: 14px; fill: currentColor; }
 
+    .btn-settings {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.16);
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      color: #FFFFFF;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .btn-settings:active { background: rgba(255, 255, 255, 0.3); }
+    .btn-settings svg { width: 17px; height: 17px; fill: currentColor; }
+
+    .settings-input {
+      width: 100%;
+      margin: 6px 0 10px;
+      padding: 11px 12px;
+      border: 1px solid #D8D2C7;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      background: #FFFFFF;
+      color: var(--text-dark);
+    }
+
+    .settings-input:focus { outline: 2px solid rgba(45, 80, 22, 0.35); border-color: var(--primary); }
+
     .install-hint {
       background: #FFF9E6;
       border-bottom: 1px solid #EEDBB2;
@@ -1351,6 +1381,11 @@
     </div>
 
     <div class="header-actions">
+      <!-- In-app settings (Gnani API key) -->
+      <button class="btn-settings" id="btn-open-settings" type="button" title="Settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 0 0-1.7-1L15 3.4h-4l-.3 2.6a7.6 7.6 0 0 0-1.7 1l-2.4-1-2 3.4L6.6 11a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.6 7.6 0 0 0 1.7 1l.3 2.6h4l.3-2.6a7.6 7.6 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6zM12 15.4A3.4 3.4 0 1 1 12 8.6a3.4 3.4 0 0 1 0 6.8z"/></svg>
+      </button>
+
       <!-- Install (shown when the browser offers installation) -->
       <button class="btn-install" id="btn-install-app" type="button" title="App install karein">
         <svg viewBox="0 0 24 24"><path d="M11 3h2v9.2l3.3-3.3 1.4 1.4L12 16l-5.7-5.7 1.4-1.4L11 12.2V3zM5 19h14v2H5z"/></svg>
@@ -1577,6 +1612,52 @@
 
   </aside>
 
+  <!-- SETTINGS MODAL (in-app Gnani key) -->
+  <div class="customer-modal-overlay" id="settings-modal-overlay">
+    <div class="customer-modal-card" style="max-width: 460px;">
+      <div class="cust-modal-header">
+        <div>
+          <div class="cust-modal-title">Settings</div>
+          <div style="font-size: 0.74rem; color: #7F776B;">Gnani API key</div>
+        </div>
+        <button class="btn-close-drawer" id="btn-close-settings" style="background: #EFE9E0; color: #433D35;" aria-label="Band karein">&times;</button>
+      </div>
+
+      <div class="cust-modal-body">
+        <p style="font-size: 0.84rem; color: #5F5F5F; line-height: 1.5; margin-bottom: 12px;">
+          Apni Gnani API key yahan daalein. Key sirf is server par (0600 permission) save hoti hai,
+          browser mein nahi, aur dobara kabhi nahi dikhayi jaati. Iske baad mic Prisma STT aur
+          Timbre TTS istemal karega.
+        </p>
+
+        <label for="settings-gnani-key" style="font-size: 0.78rem; font-weight: 700; color: #524B40;">GNANI_API_KEY</label>
+        <input
+          id="settings-gnani-key"
+          class="settings-input"
+          type="password"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+          placeholder="vach_..."
+        />
+
+        <div id="settings-status" style="font-size: 0.8rem; color: #6C655A; margin-bottom: 12px; line-height: 1.45;">
+          Key status check ho raha hai...
+        </div>
+
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <button class="btn-quick-voice-ask" id="btn-save-settings" type="button">Save key</button>
+          <button class="suggestion-chip" id="btn-clear-settings" type="button" style="background: #FFFFFF; border-color: #E0B4B4; color: #B3261E;">Remove</button>
+        </div>
+
+        <button class="suggestion-chip" id="btn-change-server" type="button" hidden
+          style="margin-top: 12px; background: #FFFFFF; border-color: #D8CFC4;">
+          🖥️ Server URL badlein (app)
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- CUSTOMER HISTORY MODAL -->
   <div class="customer-modal-overlay" id="customer-modal-overlay">
     <div class="customer-modal-card">
@@ -1684,6 +1765,10 @@
     const aiSpeakingToast = document.getElementById('ai-speaking-toast');
     const aiBanner = document.getElementById('ai-banner');
     const btnCloseAiBanner = document.getElementById('btn-close-ai-banner');
+    const btnOpenSettings = document.getElementById('btn-open-settings');
+    const settingsOverlay = document.getElementById('settings-modal-overlay');
+    const settingsKeyInput = document.getElementById('settings-gnani-key');
+    const settingsStatus = document.getElementById('settings-status');
 
     // Drawer & Modal Elements
     const btnToggleLedger = document.getElementById('btn-toggle-ledger');
@@ -1709,6 +1794,7 @@
     window.addEventListener('DOMContentLoaded', () => {
       registerServiceWorker();
       setupInstallPrompt();
+      setupAndroidBridge();
       applyLowPowerMode();
       initWebSocket();
       renderCustomerList(khataData.customers);
@@ -1731,6 +1817,18 @@
       btnCloseCustModal.addEventListener('click', closeCustomerModal);
       customerModalOverlay.addEventListener('click', (e) => {
         if (e.target === customerModalOverlay) closeCustomerModal();
+      });
+
+      // In-app settings
+      btnOpenSettings.addEventListener('click', openSettingsModal);
+      document.getElementById('btn-close-settings').addEventListener('click', closeSettingsModal);
+      settingsOverlay.addEventListener('click', (e) => {
+        if (e.target === settingsOverlay) closeSettingsModal();
+      });
+      document.getElementById('btn-save-settings').addEventListener('click', saveGnaniKey);
+      document.getElementById('btn-clear-settings').addEventListener('click', clearGnaniKey);
+      settingsKeyInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); saveGnaniKey(); }
       });
 
       // Quick status reconnect on tap
@@ -2692,6 +2790,18 @@
       if (isIos && !standalone && installHint) installHint.hidden = false;
     }
 
+    function setupAndroidBridge() {
+      const changeServerBtn = document.getElementById('btn-change-server');
+      if (!changeServerBtn) return;
+      if (window.AndroidHost && typeof window.AndroidHost.changeServer === 'function') {
+        changeServerBtn.hidden = false;
+        changeServerBtn.addEventListener('click', () => {
+          closeSettingsModal();
+          window.AndroidHost.changeServer();
+        });
+      }
+    }
+
     function applyLowPowerMode() {
       const memory = navigator.deviceMemory || 4;
       const cores = navigator.hardwareConcurrency || 8;
@@ -2699,6 +2809,85 @@
       const saveData = Boolean(navigator.connection && navigator.connection.saveData);
       if (memory <= 2 || cores <= 4 || reducedMotion || saveData) {
         document.body.classList.add('low-power');
+      }
+    }
+    // ==========================================================================
+    // 12. IN-APP SETTINGS: GNANI API KEY
+    // ==========================================================================
+    function openSettingsModal() {
+      settingsOverlay.classList.add('active');
+      refreshKeySettings();
+    }
+
+    function closeSettingsModal() {
+      settingsOverlay.classList.remove('active');
+      settingsKeyInput.value = '';
+    }
+
+    function renderKeyStatus(data) {
+      settingsKeyInput.value = '';
+      if (data.source === 'environment') {
+        settingsStatus.textContent = 'Key server environment se aa rahi hai, isliye app se badli nahi ja sakti.';
+      } else if (data.configured) {
+        settingsStatus.textContent = '✅ Key set hai. Mic daba kar bolein — Prisma STT aur Timbre TTS chalu hain.';
+      } else {
+        settingsStatus.textContent = 'Key set nahi hai. Abhi mic browser ki speech recognition par chalega.';
+      }
+    }
+
+    async function refreshKeySettings() {
+      settingsStatus.textContent = 'Key status check ho raha hai...';
+      try {
+        const res = await fetch('/api/settings', { cache: 'no-store' });
+        renderKeyStatus(await res.json());
+      } catch (err) {
+        settingsStatus.textContent = 'Settings load nahi hue. Server se sampark check karein.';
+      }
+    }
+
+    async function saveGnaniKey() {
+      const key = settingsKeyInput.value.trim();
+      if (!key) {
+        settingsStatus.textContent = 'Pehle key daalein.';
+        return;
+      }
+
+      settingsStatus.textContent = 'Save ho rahi hai...';
+      try {
+        const res = await fetch('/api/settings/gnani-key', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          settingsStatus.textContent = data.error || 'Key save nahi hui.';
+          return;
+        }
+
+        renderKeyStatus(data);
+        useBrowserStt = false;
+        fetch('/api/health').then((r) => r.json()).then((h) => { useBrowserStt = !h.stt; }).catch(() => {});
+        appendAIMessage('Gnani key save ho gayi. Ab mic daba kar bolein.');
+      } catch (err) {
+        settingsStatus.textContent = 'Server se sampark nahi hua; key save nahi hui.';
+      }
+    }
+
+    async function clearGnaniKey() {
+      settingsStatus.textContent = 'Key hata rahi hai...';
+      try {
+        const res = await fetch('/api/settings/gnani-key', { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) {
+          settingsStatus.textContent = data.error || 'Key nahi hati.';
+          return;
+        }
+        renderKeyStatus(data);
+        useBrowserStt = true;
+        appendAIMessage('Gnani key hata di gayi. Ab browser speech recognition chalega.');
+      } catch (err) {
+        settingsStatus.textContent = 'Server se sampark nahi hua; key nahi hati.';
       }
     }
     // --- Helpers ---

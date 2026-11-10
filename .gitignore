@@ -13,3 +13,7 @@ coverage/
 .DS_Store
 .system_generated/
 .khata-key
+.gnani-key
+android/build/
+android/keystore/
+certs/

@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
 import { createServer } from 'http';
+import { createServer as createSecureServer } from 'https';
+import { readFileSync, existsSync } from 'fs';
 import { WebSocketServer, WebSocket } from 'ws';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -10,17 +12,31 @@ import { GnaniSTT } from './lib/gnani-stt.js';
 import { GnaniTTS } from './lib/gnani-tts.js';
 import { KhataAgent } from './lib/agent.js';
 import { PcmFramer } from './lib/pcm-framer.js';
+import { KeyStore } from './lib/key-store.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
-const server = createServer(app);
+
+// Optional HTTPS, mainly for phone testing: browsers only expose the microphone
+// on a secure origin, and a LAN IP over plain HTTP is not one.
+const TLS_CERT = process.env.TLS_CERT || join(__dirname, 'certs', 'dev-cert.pem');
+const TLS_KEY = process.env.TLS_KEY || join(__dirname, 'certs', 'dev-key.pem');
+const USE_TLS = process.env.HTTPS === '1' && existsSync(TLS_CERT) && existsSync(TLS_KEY);
+
+const server = USE_TLS
+  ? createSecureServer({ cert: readFileSync(TLS_CERT), key: readFileSync(TLS_KEY) }, app)
+  : createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });
 
 const PORT = Number(process.env.PORT || 3000);
-const GNANI_API_KEY = process.env.GNANI_API_KEY || '';
 const DB_PATH = process.env.KHATA_DB || join(__dirname, 'bolti-bahi.db');
+
+// A key entered in the app is stored beside the ledger with mode 0600.
+// An environment key still wins, so deployments can stay secret-managed.
+const keyStore = new KeyStore({ file: join(dirname(DB_PATH), '.gnani-key') });
+let GNANI_API_KEY = keyStore.get();
 const RETENTION_MINUTES = Number(process.env.TRANSCRIPT_RETENTION_MINUTES || 120);
 const ALLOW_RESET = process.env.ENABLE_RESET === '1' || process.env.NODE_ENV === 'test';
 
@@ -87,6 +103,75 @@ app.get('/api/state', (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
+});
+
+// ---------------------------------------------------------------------------
+// In-app settings: Gnani API key
+// ---------------------------------------------------------------------------
+
+function isSameOrigin(req) {
+  const origin = req.get('origin');
+  // Native shells and curl omit Origin; browsers always send it for POST.
+  if (!origin) return true;
+  try {
+    return new URL(origin).host === req.get('host');
+  } catch {
+    return false;
+  }
+}
+
+app.get('/api/settings', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    success: true,
+    configured: Boolean(GNANI_API_KEY),
+    source: keyStore.source(),
+    stt: Boolean(GNANI_API_KEY),
+    tts: Boolean(GNANI_API_KEY),
+  });
+});
+
+app.post('/api/settings/gnani-key', (req, res) => {
+  if (!isSameOrigin(req)) {
+    return res.status(403).json({ success: false, error: 'Same-origin request required.' });
+  }
+  if (keyStore.source() === 'environment') {
+    return res.status(409).json({
+      success: false,
+      error: 'Key server environment se aa rahi hai. Wahan badalni hogi.',
+    });
+  }
+
+  try {
+    keyStore.set(req.body?.key);
+    GNANI_API_KEY = keyStore.get();
+    console.log('[Settings] Gnani key saved from the app (value not logged)');
+    return res.json({
+      success: true,
+      configured: Boolean(GNANI_API_KEY),
+      source: keyStore.source(),
+      stt: Boolean(GNANI_API_KEY),
+      tts: Boolean(GNANI_API_KEY),
+    });
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/settings/gnani-key', (req, res) => {
+  if (!isSameOrigin(req)) {
+    return res.status(403).json({ success: false, error: 'Same-origin request required.' });
+  }
+  if (keyStore.source() === 'environment') {
+    return res.status(409).json({
+      success: false,
+      error: 'Key server environment se aa rahi hai. Wahan hataani hogi.',
+    });
+  }
+  keyStore.clear();
+  GNANI_API_KEY = keyStore.get();
+  console.log('[Settings] Gnani key removed from the app');
+  return res.json({ success: true, configured: Boolean(GNANI_API_KEY), source: keyStore.source() });
 });
 
 // Text turn without a WebSocket (curl, judge script, accessibility fallback).
@@ -399,8 +484,15 @@ if (RETENTION_MINUTES > 0) {
 }
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n🎙️  Bolti Bahi running at http://localhost:${PORT}`);
-  console.log(`📡 WebSocket: ws://localhost:${PORT}/ws`);
+  const scheme = USE_TLS ? 'https' : 'http';
+  console.log(`\n🎙️  Bolti Bahi running at ${scheme}://localhost:${PORT}`);
+  console.log(`📡 WebSocket: ${USE_TLS ? 'wss' : 'ws'}://localhost:${PORT}/ws`);
+  if (process.env.HTTPS === '1' && !USE_TLS) {
+    console.log('⚠️  HTTPS=1 but no certificate found. Run: npm run cert');
+  }
+  if (!USE_TLS) {
+    console.log('ℹ️  Plain HTTP: phone microphones need HTTPS (npm run cert, then HTTPS=1 npm start).');
+  }
   console.log(`🔐 Ledger: ${DB_PATH} (transcripts encrypted, retention ${RETENTION_MINUTES}m)`);
   if (!GNANI_API_KEY) console.log('ℹ️  GNANI_API_KEY missing: browser speech fallback will be used.');
   console.log('');

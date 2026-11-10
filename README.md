@@ -68,6 +68,7 @@ Bolti Bahi installs straight from the browser — no store build, no framework:
 - **Low-end friendly:** one HTML file with no bundler; 16 kHz `AudioContext` with native resampling; animations off on `deviceMemory ≤ 2`, `hardwareConcurrency ≤ 4`, Data Saver or reduced motion; chat DOM capped at 80 nodes; no duplicate WAV encode/upload.
 - **Offline honest:** the cached shell opens and says the ledger is unreachable — it never queues a fake entry.
 - **Store later:** `public/` can be wrapped as a Trusted Web Activity or Capacitor app without code changes.
+- **Android APK:** [`bolti-bahi/android/bolti-bahi-1.4.0-debug.apk`](./bolti-bahi/android/bolti-bahi-1.4.0-debug.apk) — a signed WebView client. Run the server over HTTPS (`npm run cert`, then `HTTPS=1 npm start`), enter that URL on first launch, then add the Gnani key from the app's ⚙ Settings (stored server-side, `0600`, never echoed).
 - Icons are reproducible with `node scripts/make-icons.mjs`.
 
 ## Testing

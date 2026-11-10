@@ -97,6 +97,22 @@ check('server serves the manifest', /express\.static/.test(serverSource));
 
 check('public directory has no build step', !existsSync(join(ROOT, 'vite.config.js')));
 check('service worker file is non-trivial', statSync(join(PUBLIC, 'sw.js')).size > 1000);
+check('page exposes the in-app key settings', /settings-modal-overlay/.test(html) && /\/api\/settings\/gnani-key/.test(html));
+
+// Android shell
+const androidManifest = readFileSync(join(ROOT, 'android', 'AndroidManifest.xml'), 'utf8');
+check('Android manifest declares the package', /package="ai\.boltibahi\.app"/.test(androidManifest));
+check('Android app requests the microphone', /RECORD_AUDIO/.test(androidManifest));
+check('Android app allows LAN cleartext', /usesCleartextTraffic="true"/.test(androidManifest));
+
+const mainActivity = readFileSync(join(ROOT, 'android', 'java', 'ai', 'boltibahi', 'app', 'MainActivity.java'), 'utf8');
+check('Android app grants WebView audio capture', /onPermissionRequest/.test(mainActivity) && /AUDIO_CAPTURE/.test(mainActivity));
+check('Android app can change the server URL', /AndroidHost/.test(mainActivity) && /changeServer/.test(mainActivity));
+check('Android app validates the http(s) scheme', /startsWith\("https:\/\/"\)/.test(mainActivity));
+
+const apkPath = join(ROOT, 'android', 'bolti-bahi-1.4.0-debug.apk');
+check('signed debug APK is present', existsSync(apkPath) && statSync(apkPath).size > 15000);
+check('APK build script is present', existsSync(join(ROOT, 'android', 'build-apk.sh')));
 
 console.log(`\n${failed === 0 ? '✅' : '❌'} PWA shell: ${passed} passed, ${failed} failed\n`);
 process.exit(failed === 0 ? 0 : 1);

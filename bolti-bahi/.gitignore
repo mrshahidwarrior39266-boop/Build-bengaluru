@@ -12,3 +12,8 @@ dist/
 coverage/
 .DS_Store
 .khata-key
+.gnani-key
+android/build/
+android/keystore/
+certs/
+*.idsig

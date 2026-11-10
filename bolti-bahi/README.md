@@ -67,6 +67,20 @@ Open http://localhost:3000 on the phone or laptop.
 
 The key stays in `.env`, which is gitignored. `.env.example` contains placeholders only.
 
+### Adding the key from the app
+
+Open the ⚙ button in the header, paste the key and press **Save**. The server
+stores it beside the ledger in `.gnani-key` with mode `0600`; the browser never
+keeps it, and `GET /api/settings` only ever reports whether a key exists. Writes
+are accepted from the same origin only. If `GNANI_API_KEY` is set in the
+environment it wins, so a deployed instance stays secret-managed.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/settings` | `{configured, source, stt, tts}` — never the key |
+| `POST /api/settings/gnani-key` | save a key from the app |
+| `DELETE /api/settings/gnani-key` | remove the app-saved key |
+
 ## Mobile app (installable PWA)
 
 Bolti Bahi is the app — there is no store download and no WebView wrapper:
@@ -79,6 +93,35 @@ Bolti Bahi is the app — there is no store download and no WebView wrapper:
 - **Icons** are reproducible: `node scripts/make-icons.mjs` (no dependencies).
 
 Run the server on the shop's Wi-Fi, open it on the phone, and add it to the home screen once.
+
+## Android APK
+
+`android/bolti-bahi-1.4.0-debug.apk` is a signed debug WebView app (package
+`ai.boltibahi.app`, minSdk 23) that runs the same UI full-screen.
+
+1. Start the server with HTTPS — browsers and WebViews only allow the microphone
+   on a secure origin, and a LAN IP over plain HTTP is not one:
+
+   ```bash
+   npm run cert            # self-signed cert for this machine's LAN IP
+   HTTPS=1 PORT=3443 npm start
+   ```
+
+2. Install the APK (`adb install android/bolti-bahi-1.4.0-debug.apk`, or copy it to the phone).
+3. On first launch enter the server URL, e.g. `https://192.168.1.5:3443`.
+4. Open **⚙ Settings**, paste the Gnani key, press **Save**. It goes to the
+   server (`.gnani-key`, `0600`), not into the APK, browser storage or git.
+5. Hold the mic and say `Ramesh ka teen sau chaalis udhaar`.
+
+Rebuild without Gradle:
+
+```bash
+ANDROID_SDK_ROOT=/path/to/sdk JAVA_HOME=/path/to/jdk17 ./android/build-apk.sh
+```
+
+Needs SDK platform 34 and build-tools 34.0.0. This is a debug build: it accepts
+its own self-signed LAN certificate, so replace the keystore before any release.
+The APK is a client — the ledger and the key live on the Bolti Bahi server.
 
 ## Demo script
 
@@ -135,7 +178,7 @@ shop-noise microphone quality. That still needs a live demo check.
 ```bash
 pnpm test             # intent, ledger, PWA shell, Gnani contract, judge, WebSocket E2E
 pnpm test:judge       # 100-point behavioural judge with hard compliance gates
-pnpm test:pwa         # manifest, icons, service worker and install wiring
+pnpm test:pwa         # manifest, icons, service worker, Android shell and APK
 pnpm test:gnani       # offline wire-protocol contract for the STT/TTS adapters
 pnpm verify:gnani     # live TTS → PCM → Prisma → ledger check (needs GNANI_API_KEY)
 pnpm bench:stt        # live recognition accuracy over synthesized utterances (needs key)
