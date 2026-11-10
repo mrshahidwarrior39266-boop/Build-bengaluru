@@ -1,0 +1,28 @@
+{
+  "name": "bolti-bahi",
+  "version": "1.3.0",
+  "description": "Bolti Bahi — voice-first khata for kirana stores: installable PWA with on-device number parsing and Gnani STT/TTS",
+  "type": "module",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node test/test-intent.js && node test/test-ledger.js && node test/test-pwa.js && node test/test-gnani-contract.js && node test/judge-evaluation.js && node test/test-ws-e2e.js",
+    "test:intent": "node test/test-intent.js",
+    "test:ledger": "node test/test-ledger.js",
+    "test:pwa": "node test/test-pwa.js",
+    "test:gnani": "node test/test-gnani-contract.js",
+    "test:judge": "node test/judge-evaluation.js",
+    "test:e2e": "node test/test-ws-e2e.js",
+    "verify:gnani": "node scripts/verify-gnani.mjs",
+    "bench:stt": "node scripts/bench-stt.mjs",
+    "icons": "node scripts/make-icons.mjs"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  }
+}

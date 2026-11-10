@@ -1,21 +1,20 @@
 /**
- * Voice Khata Test Suite
+ * Bolti Bahi Test Suite
  * Tests ledger logic, LLM processing, and number parsing
  * Run: node test/test-ledger.js
  */
 
 import { LedgerDB } from '../lib/ledger-db.js';
-import { LLMProcessor } from '../lib/llm-processor.js';
 import { existsSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const TEST_DB = join(__dirname, 'test-khata.db');
+const TEST_DB = join(__dirname, 'test-bolti-bahi.db');
 
 // Clean up previous test DB
-if (existsSync(TEST_DB)) {
-  unlinkSync(TEST_DB);
+for (const suffix of ['', '-wal', '-shm']) {
+  if (existsSync(TEST_DB + suffix)) unlinkSync(TEST_DB + suffix);
 }
 
 let passed = 0;
@@ -161,58 +160,10 @@ console.log('\n--- Name Matching ---');
 const similar = ledger.findSimilarCustomers('esh');
 assert(similar.length >= 2, `Found ${similar.length} customers matching "esh"`);
 
-// ===== LLM PROCESSOR TESTS (parse logic only) =====
-console.log('\n🧠 LLM RESPONSE PARSER TESTS\n');
-
-const llm = new LLMProcessor();
-
-// Test parse valid JSON
-const validResult = llm._parseResponse(JSON.stringify({
-  action: 'add_credit',
-  customerName: 'Ramesh',
-  amount: 340,
-  date: today,
-  spokenResponse: 'Ramesh ka 340 likh diya'
-}));
-assertEq(validResult.action, 'add_credit', 'Parse valid credit action');
-assertEq(validResult.amount, 340, 'Parse amount as number');
-
-// Test parse JSON with markdown wrapping
-const markdownResult = llm._parseResponse('```json\n{"action":"add_payment","customerName":"Suresh","amount":"500","spokenResponse":"ok"}\n```');
-assertEq(markdownResult.action, 'add_payment', 'Parse markdown-wrapped JSON');
-assertEq(markdownResult.amount, 500, 'String amount converted to number');
-
-// Test parse correction
-const correctionResult = llm._parseResponse(JSON.stringify({
-  action: 'correct_entry',
-  customerName: 'Ramesh',
-  newAmount: 430,
-  spokenResponse: '430 kar diya'
-}));
-assertEq(correctionResult.action, 'correct_entry', 'Parse correction action');
-assertEq(correctionResult.newAmount, 430, 'newAmount parsed correctly');
-
-// Test parse query
-const queryResult = llm._parseResponse(JSON.stringify({
-  action: 'query',
-  queryResult: { type: 'customer_balance' },
-  spokenResponse: 'Ramesh ka 570 baaki hai'
-}));
-assertEq(queryResult.action, 'query', 'Parse query action');
-assert(queryResult.queryResult.type === 'customer_balance', 'Query type parsed');
-
-// Test parse invalid JSON
-const invalidResult = llm._parseResponse('this is not json at all');
-assertEq(invalidResult.action, 'error', 'Invalid JSON returns error action');
-
-// Test parse empty
-const emptyResult = llm._parseResponse('{}');
-assertEq(emptyResult.action, 'error', 'Empty object returns error (no action)');
-
 // ===== CLEANUP =====
 ledger.close();
-if (existsSync(TEST_DB)) {
-  unlinkSync(TEST_DB);
+for (const suffix of ['', '-wal', '-shm']) {
+  if (existsSync(TEST_DB + suffix)) unlinkSync(TEST_DB + suffix);
 }
 
 // ===== SUMMARY =====

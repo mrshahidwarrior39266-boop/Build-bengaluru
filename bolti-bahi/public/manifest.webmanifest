@@ -1,0 +1,21 @@
+{
+  "name": "Bolti Bahi — Dukaan ka Hisaab",
+  "short_name": "Bolti Bahi",
+  "description": "Bolkar udhaar aur jama likhein. Dukaan ka khata jo aapki awaaz sunta hai — bina screen chhue.",
+  "lang": "hi-IN",
+  "dir": "ltr",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
+  "background_color": "#F5F0EB",
+  "theme_color": "#2D5016",
+  "categories": ["business", "finance", "productivity"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

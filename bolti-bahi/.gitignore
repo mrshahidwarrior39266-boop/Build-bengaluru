@@ -1,0 +1,14 @@
+node_modules/
+.env
+.env.*
+!.env.example
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.key
+.bolti-bahi-key
+dist/
+coverage/
+.DS_Store
+.khata-key
