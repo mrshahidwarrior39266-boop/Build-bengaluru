@@ -128,7 +128,9 @@ console.log('\nPrisma v3.0 STT wire contract');
   const ws = await stt.connect({ languageCode: 'hi-IN,en-IN', format: 'codemix', sampleRate: 16000 });
 
   check('sends the key only in the x-api-key-id header', upgradeHeaders['x-api-key-id'] === 'unit-test-key');
-  eq('language_code header', upgradeHeaders.language_code, 'hi-IN,en-IN');
+  // Streaming takes exactly one locale; a comma list must collapse to the first
+  // code, otherwise Gnani closes the socket with "exactly one locale is required".
+  eq('language_code collapses a list to one locale', upgradeHeaders.language_code, 'hi-IN');
   eq('model header', upgradeHeaders.model, 'prisma-v3.0');
   eq('format header', upgradeHeaders.format, 'codemix');
   eq('x-sample-rate header', upgradeHeaders['x-sample-rate'], '16000');

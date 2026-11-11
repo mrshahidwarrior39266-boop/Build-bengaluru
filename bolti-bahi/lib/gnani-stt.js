@@ -38,7 +38,7 @@ export class GnaniSTT {
   async connect(options = {}) {
     const {
       model = 'prisma-v3.0',
-      languageCode = 'hi-IN,en-IN',
+      languageCode = 'hi-IN',
       format = 'codemix',
       sampleRate = 16000,
       keyterms = [],
@@ -48,10 +48,19 @@ export class GnaniSTT {
 
     if (!this.apiKey) throw new Error('GNANI_API_KEY is not configured');
 
+    // Streaming accepts exactly one locale: a list like "hi-IN,en-IN" is
+    // rejected with "exactly one locale is required", and multi_lang_codes is
+    // not accepted on this endpoint. Take the first code and let Prisma v3.0
+    // follow the language actually spoken.
+    const primaryLanguage = String(languageCode || '')
+      .split(',')
+      .map((code) => code.trim())
+      .filter(Boolean)[0] || 'hi-IN';
+
     const headers = {
       'x-api-key-id': this.apiKey,
       model,
-      language_code: languageCode,
+      language_code: primaryLanguage,
       format,
       'x-sample-rate': String(sampleRate),
     };

@@ -616,7 +616,9 @@ wss.on('connection', (clientWs, upgradeReq) => {
       const stt = new GnaniSTT(GNANI_API_KEY);
       sttSocket = await stt.connect({
         model: 'prisma-v3.0',
-        languageCode: 'hi-IN,en-IN',
+        // Streaming takes one locale; GNANI_LANGUAGE lets a shop switch it
+        // (e.g. bn-IN, ta-IN) without touching code.
+        languageCode: process.env.GNANI_LANGUAGE || 'hi-IN',
         format: 'codemix',
         sampleRate: 16000,
       });
