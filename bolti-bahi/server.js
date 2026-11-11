@@ -115,7 +115,8 @@ app.get('/api/session', (req, res) => {
     success: true,
     authRequired: googleAuth.enabled,
     authenticated: req.authed,
-    store: req.store ? {
+    // Never describe a shop to someone who is not signed into it.
+    store: req.store && (req.authed || !googleAuth.enabled) ? {
       id: req.store.id,
       name: req.store.store_name || '',
       needsName: !req.store.store_name,
