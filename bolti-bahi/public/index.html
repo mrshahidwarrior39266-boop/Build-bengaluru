@@ -66,6 +66,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 10px;
       box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
       z-index: 30;
       flex-shrink: 0;
@@ -75,6 +76,10 @@
       display: flex;
       flex-direction: column;
       gap: 1px;
+      /* Let the store name and tagline give way instead of pushing the
+         settings, install and status controls onto a second line. */
+      min-width: 0;
+      flex: 1 1 auto;
     }
 
     .brand-title {
@@ -91,12 +96,16 @@
       color: #E0EBD8;
       font-weight: 400;
       letter-spacing: 0.1px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .header-actions {
       display: flex;
       align-items: center;
       gap: 10px;
+      flex-shrink: 0;
     }
 
     /* Connection Status Dot */
@@ -112,6 +121,8 @@
       border: 1px solid rgba(255, 255, 255, 0.2);
       cursor: pointer;
       transition: background 0.2s ease;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
 
     .status-badge:active {
@@ -2600,7 +2611,7 @@
           isConnected = true;
           reconnectDelay = 1000;
           offlineBanner.classList.remove('active');
-          setStatus('connected', 'Juda Hua Hai');
+          setStatus('connected', 'Online Hai');
           console.log('[BoltiBahi] WebSocket Connected to', wsUrl);
 
           // Request initial ledger data
@@ -2862,7 +2873,7 @@
         console.error('[BoltiBahi] Mic access failed:', err);
         isRecording = false;
         updateMicUI(false);
-        setStatus(isConnected ? 'connected' : 'disconnected', isConnected ? 'Juda Hua Hai' : 'Offline');
+        setStatus(isConnected ? 'connected' : 'disconnected', isConnected ? 'Online Hai' : 'Offline');
         appendAIMessage('Microphone ki permission nahi mili. Kripya browser setting mein mic allow karein ya text likhein.');
       }
     }
@@ -2901,7 +2912,7 @@
       if (browserRecognition) {
         try { browserRecognition.stop(); } catch { /* already stopped */ }
         updateMicUI(false);
-        setStatus(isConnected ? 'connected' : 'disconnected', isConnected ? 'Juda Hua Hai' : 'Offline');
+        setStatus(isConnected ? 'connected' : 'disconnected', isConnected ? 'Online Hai' : 'Offline');
         return;
       }
 
@@ -2922,7 +2933,7 @@
 
       // UI State -> Idle
       updateMicUI(false);
-      setStatus(isConnected ? 'connected' : 'disconnected', isConnected ? 'Juda Hua Hai' : 'Offline');
+      setStatus(isConnected ? 'connected' : 'disconnected', isConnected ? 'Online Hai' : 'Offline');
       liveTranscriptText.textContent = 'Aawaz process ho rahi hai...';
 
       // Send audio completion payload
@@ -3454,7 +3465,7 @@
         browserRecognition.onend = () => {
           isRecording = false;
           updateMicUI(false);
-          setStatus(isConnected ? 'connected' : 'disconnected', isConnected ? 'Juda Hua Hai' : 'Offline');
+          setStatus(isConnected ? 'connected' : 'disconnected', isConnected ? 'Online Hai' : 'Offline');
           liveTranscript.style.display = 'none';
         };
       }
