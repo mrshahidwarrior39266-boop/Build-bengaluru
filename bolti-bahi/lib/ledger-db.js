@@ -13,13 +13,7 @@ import { randomUUID } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { TranscriptVault } from './crypto-store.js';
-
-function localYmd(date = new Date()) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
+import { localYmd } from './shop-date.js';
 
 export class LedgerDB {
   constructor(dbPath, options = {}) {

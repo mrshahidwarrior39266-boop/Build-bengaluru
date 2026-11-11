@@ -8,6 +8,7 @@
  */
 
 import { normalizeSpokenText, scanAmounts, _internals } from './hindi-numbers.js';
+import { localYmd } from './shop-date.js';
 
 const { tokenKind } = _internals;
 
@@ -88,12 +89,6 @@ export function extractCustomer(maskedText) {
   return titleCaseAscii(kept.join(' '));
 }
 
-function localYmd(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
 
 function shiftDays(date, days) {
   const d = new Date(date.getTime());

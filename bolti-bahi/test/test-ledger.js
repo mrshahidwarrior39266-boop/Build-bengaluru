@@ -5,6 +5,7 @@
  */
 
 import { LedgerDB } from '../lib/ledger-db.js';
+import { localYmd } from '../lib/shop-date.js';
 import { existsSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -79,7 +80,8 @@ assert(customer2.id !== customer1.id, 'Create different customer Suresh');
 
 // Test 5: Add credit entry
 console.log('\n--- Ledger Entries ---');
-const today = new Date().toISOString().split('T')[0];
+// "Today" is the shop's calendar day, not UTC: the ledger compares dates that way.
+const today = localYmd();
 const entry1 = ledger.addEntry({
   customerName: 'Ramesh',
   amount: 340,
