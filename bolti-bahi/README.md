@@ -84,6 +84,10 @@ Open http://localhost:3000 on the phone or laptop.
 | `LLM_API_KEY` | Optional Grok (xAI) fallback for sentences the local parser cannot read. Also read as `GROK_API_KEY` / `XAI_API_KEY`. Without it, unreadable speech simply stays unreadable — nothing is invented. |
 | `LLM_MODEL` | Model for that fallback (default `grok-4-fast`). |
 | `PORT` | HTTP/WebSocket port (default 3000). |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Enables Google sign-in. When both are set, every `/api` route and the WebSocket require a session. |
+| `GOOGLE_REDIRECT_URI` | OAuth callback, e.g. `https://your-app.up.railway.app/auth/google/callback`. Defaults to the request host. |
+| `STORE_DB` / `STORE_DATA_DIR` | Where the store registry (`stores.db`) and per-shop ledgers live. Point both at a Railway volume. |
+| `STORE_NAME` | Name used for the single-user store when sign-in is off. |
 | `KHATA_DB` | Ledger file path (default `./bolti-bahi.db`). |
 | `TRANSCRIPT_KEY` | 32-byte key (64 hex chars or base64) for transcript encryption. If empty, a local `.bolti-bahi-key` with mode 0600 is generated. Never commit it. |
 | `TRANSCRIPT_RETENTION_MINUTES` | Spoken transcripts are purged after this window (default 120). |
@@ -104,6 +108,31 @@ environment it wins, so a deployed instance stays secret-managed.
 | `GET /api/settings` | `{configured, source, stt, tts}` — never the key |
 | `POST /api/settings/gnani-key` | save a key from the app |
 | `DELETE /api/settings/gnani-key` | remove the app-saved key |
+
+## Store accounts (Google sign-in)
+
+Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` and the app becomes multi-shop:
+
+- the browser shows a **Google se sign in karein** screen; `/api/*` and `/ws`
+  answer `401 login_required` until it signs in;
+- the first sign-in asks for the **dukaan ka naam**, which is shown in the header
+  and stored with that account;
+- **every shop gets its own SQLite file** under `stores/`, so one shop's
+  customers and balances are physically absent from another's ledger;
+- the session is an `HttpOnly`, `SameSite=Lax` cookie (30 days), created only
+  after Google's one-time code is exchanged server-side; the state nonce is
+  checked, and `POST /auth/logout` destroys the session.
+
+With no Google credentials the app runs exactly as before in single-shop mode,
+which is what the offline tests use. `test/test-auth-store.js` drives the whole
+flow against a local Google stub: state mismatch is rejected, two accounts never
+see each other's rows, cross-origin writes stay `403`, the socket needs a
+session, and an old cookie stops working after logout.
+
+Create the OAuth client at **Google Cloud Console → APIs & Services →
+Credentials → OAuth client ID → Web application**, with the redirect URI
+`https://<your-host>/auth/google/callback`. The consent screen stays in testing
+mode until you publish it, so add test users while trialling.
 
 ### Optional Grok fallback
 
@@ -231,6 +260,23 @@ shop-noise microphone quality. That still needs a live demo check.
 - **No voice cloning**: only the preset Timbre voices (`Shivani`) are configured.
 - **Synthetic data only**: tests and demo scripts use invented customers.
 
+## Deploy on Railway
+
+The repo ships `Dockerfile`, `.dockerignore` and `railway.json`:
+
+1. Create a service from this repository and set its **Root Directory** to
+   `bolti-bahi` (that is where `railway.json` and the Dockerfile live).
+2. Add a **volume mounted at `/data`** — the image points `KHATA_DB`, `STORE_DB`
+   and `STORE_DATA_DIR` there, so ledgers survive redeploys.
+3. Set the variables: `GNANI_API_KEY`, `LLM_API_KEY`, `LLM_PROVIDER`,
+   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REDIRECT_URI`
+   (`https://<railway-domain>/auth/google/callback`).
+4. Health check is `/api/health`; the container listens on `$PORT`.
+
+Railway (like any Node host) runs the WebSocket, SQLite and the key store. A
+static host such as Vercel cannot: it would serve the UI but answer `/api/*`
+with 404.
+
 ## Tests
 
 ```bash
@@ -239,6 +285,7 @@ pnpm test:judge       # 100-point behavioural judge with hard compliance gates
 pnpm test:pwa         # manifest, icons, service worker, Android shell and APK
 pnpm test:gnani       # offline wire-protocol contract for the STT/TTS adapters
 pnpm test:llm         # Grok fallback: opt-in, validated, never writes on its own
+pnpm test:auth        # Google sign-in, sessions, per-store isolation (offline stub)
 pnpm verify:gnani     # live TTS → PCM → Prisma → ledger check (needs GNANI_API_KEY)
 pnpm bench:stt        # live recognition accuracy over synthesized utterances (needs key)
 ```

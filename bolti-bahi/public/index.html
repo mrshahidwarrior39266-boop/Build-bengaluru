@@ -1704,6 +1704,37 @@
     .bb-total-line + .bb-total-line { border-top: 1px dashed var(--line); }
     .bb-total-line strong { font-variant-numeric: tabular-nums; }
 
+    .bb-store-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(255, 255, 255, 0.16);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 999px;
+      padding: 3px 9px;
+      font-size: 0.66rem;
+      font-weight: 700;
+      margin-top: 4px;
+      max-width: 190px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .bb-login-list {
+      font-size: 0.78rem;
+      color: var(--ink-soft);
+      line-height: 1.55;
+      padding-left: 18px;
+      margin: 10px 0 16px;
+    }
+    .bb-login-google {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      text-decoration: none;
+    }
+
     /* Bottom navigation */
     .bb-tabbar {
       position: fixed;
@@ -1841,6 +1872,50 @@
 </head>
 <body data-tab="home">
 
+  <!-- SIGN-IN (only shown when the server requires Google sign-in) -->
+  <div class="bb-sheet-overlay" id="bb-login" style="align-items:center; padding:16px;">
+    <div class="bb-sheet" style="border-radius:20px; max-width:430px;">
+      <div class="bb-sheet-head">
+        <div>
+          <div class="bb-sheet-title">🎙️ Bolti Bahi</div>
+          <div class="bb-sheet-sub">Apni dukaan ka khata, apne account se</div>
+        </div>
+      </div>
+      <p style="font-size:.82rem;color:#5F5F5F;line-height:1.55;">
+        Sign in karke aapki dukaan ka khata aapke Google account se jud jayega.
+        Har dukaan ka data alag rehta hai — doosri dukaan ka hisaab kabhi nahi dikhta.
+      </p>
+      <ul class="bb-login-list">
+        <li>Grahak, udhaar aur jama sirf aapke account mein</li>
+        <li>Dukaan ka naam aap khud rakhte hain</li>
+        <li>Kabhi bhi sign out kar sakte hain</li>
+      </ul>
+      <a class="bb-btn bb-btn-solid bb-btn-block bb-login-google" href="/auth/google">
+        <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFF" d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z"/></svg>
+        Google se sign in karein
+      </a>
+      <div class="bb-form-error" id="bb-login-error" style="text-align:center;"></div>
+    </div>
+  </div>
+
+  <!-- STORE NAME ONBOARDING -->
+  <div class="bb-sheet-overlay" id="bb-store-sheet">
+    <div class="bb-sheet" role="dialog" aria-modal="true">
+      <div class="bb-sheet-head">
+        <div>
+          <div class="bb-sheet-title">Dukaan ka naam</div>
+          <div class="bb-sheet-sub">Yeh naam app ke header mein dikhega</div>
+        </div>
+      </div>
+      <div class="bb-field">
+        <label for="bb-store-name">Dukaan / shop ka naam</label>
+        <input id="bb-store-name" type="text" maxlength="60" autocomplete="organization" placeholder="Jaise: Sharma Kirana Store" />
+      </div>
+      <div class="bb-form-error" id="bb-store-error"></div>
+      <button class="bb-btn bb-btn-solid bb-btn-block" type="button" id="bb-store-save">Save karein</button>
+    </div>
+  </div>
+
   <!-- OFFLINE WARNING -->
   <div class="offline-banner" id="offline-banner">
     ⚠️ Server se sampark toot gaya hai. Reconnecting...
@@ -1853,6 +1928,7 @@
         <span>🎙️ Bolti Bahi</span>
       </div>
       <div class="brand-tagline">Apni dukaan ka hisaab, bolkar rakhein</div>
+      <span class="bb-store-pill" id="bb-store-pill" hidden></span>
     </div>
 
     <div class="header-actions">
@@ -2305,6 +2381,9 @@
           <div class="bb-danger-note" id="bb-data-note">Saara khata (grahak + len-den) delete ho jayega. Yeh wapas nahi aata.</div>
           <button class="bb-btn bb-btn-danger bb-btn-block" type="button" id="bb-clear-data">Saara data delete karein</button>
         </div>
+
+        <button class="bb-btn bb-btn-danger bb-btn-block" type="button" id="bb-logout" hidden
+          style="margin-top:12px; background:#fff;">Google account se sign out</button>
       </div>
     </div>
   </div>
@@ -3960,6 +4039,10 @@
             fetch('/api/state', { cache: 'no-store' }).then((r) => r.json()),
             fetch('/api/activity?limit=30', { cache: 'no-store' }).then((r) => r.json()),
           ]);
+          if (stateRes.error === 'login_required' || activityRes.error === 'login_required') {
+            openSheet('bb-login');
+            return;
+          }
           if (stateRes.success) state = stateRes;
           if (activityRes.success) activity = activityRes.entries;
           renderHome();
@@ -3980,6 +4063,60 @@
       function scheduleRefresh() {
         clearTimeout(refreshTimer);
         refreshTimer = setTimeout(refresh, 300);
+      }
+
+      // ------------------------------------------------------------- accounts
+      let sessionInfo = null;
+
+      async function loadSession() {
+        if (new URLSearchParams(location.search).get('auth') === 'disabled') {
+          $('bb-login-error').textContent = 'Server par Google sign-in configured nahi hai.';
+        }
+        try {
+          const res = await fetch('/api/session', { cache: 'no-store' });
+          if (!res.ok) throw new Error('session');
+          sessionInfo = await res.json();
+        } catch {
+          return true; // offline: the server stays the source of truth for data
+        }
+
+        if (sessionInfo.authRequired && !sessionInfo.authenticated) {
+          openSheet('bb-login');
+          return false;
+        }
+        if (sessionInfo.store?.name) {
+          const pill = $('bb-store-pill');
+          pill.hidden = false;
+          pill.textContent = sessionInfo.store.name;
+        }
+        $('bb-logout').hidden = !sessionInfo.authRequired;
+        if (sessionInfo.authRequired && sessionInfo.store?.needsName) {
+          openSheet('bb-store-sheet');
+        }
+        return true;
+      }
+
+      async function saveStoreName() {
+        const name = $('bb-store-name').value.trim();
+        if (name.length < 2) {
+          $('bb-store-error').textContent = 'Dukaan ka naam likhein.';
+          return;
+        }
+        const res = await fetch('/api/store', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          $('bb-store-error').textContent = data.error || 'Naam save nahi hua.';
+          return;
+        }
+        const pill = $('bb-store-pill');
+        pill.hidden = false;
+        pill.textContent = data.store.name;
+        closeSheet('bb-store-sheet');
+        flash('Dukaan ka naam save hua');
       }
 
       // ---------------------------------------------------------------- wires
@@ -4014,6 +4151,11 @@
 
       $('bb-export-csv').addEventListener('click', exportCsv);
       $('bb-clear-data').addEventListener('click', clearAllData);
+      $('bb-store-save').addEventListener('click', saveStoreName);
+      $('bb-logout').addEventListener('click', async () => {
+        try { await fetch('/auth/logout', { method: 'POST' }); } catch { /* offline */ }
+        location.reload();
+      });
 
       document.querySelectorAll('#bb-range-chips .bb-chip').forEach((btn) => {
         btn.addEventListener('click', () => {
@@ -4043,8 +4185,11 @@
         };
       }
 
-      setTab('home');
-      refresh();
+      loadSession().then((ready) => {
+        if (!ready) return;
+        setTab('home');
+        refresh();
+      });
 
       return { refresh, setTab, openEntrySheet };
     })();

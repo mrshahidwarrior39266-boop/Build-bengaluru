@@ -17,3 +17,5 @@ android/build/
 android/keystore/
 certs/
 *.idsig
+stores.db
+stores/

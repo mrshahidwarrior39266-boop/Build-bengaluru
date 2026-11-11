@@ -6,14 +6,16 @@ import { readFileSync, existsSync } from 'fs';
 import { WebSocketServer, WebSocket } from 'ws';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { randomUUID } from 'crypto';
-import { LedgerDB, localYmd } from './lib/ledger-db.js';
+import { randomBytes, randomUUID } from 'crypto';
+import { localYmd } from './lib/ledger-db.js';
 import { GnaniSTT } from './lib/gnani-stt.js';
 import { GnaniTTS } from './lib/gnani-tts.js';
 import { KhataAgent } from './lib/agent.js';
 import { PcmFramer } from './lib/pcm-framer.js';
 import { KeyStore } from './lib/key-store.js';
 import { LlmBrain } from './lib/llm-brain.js';
+import { StoreRegistry } from './lib/store-registry.js';
+import { GoogleAuth } from './lib/google-auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -41,11 +43,21 @@ let GNANI_API_KEY = keyStore.get();
 const RETENTION_MINUTES = Number(process.env.TRANSCRIPT_RETENTION_MINUTES || 120);
 const ALLOW_RESET = process.env.ENABLE_RESET === '1' || process.env.NODE_ENV === 'test';
 
-const ledger = new LedgerDB(DB_PATH);
+// One ledger file per shop. The pre-existing single-user ledger is the
+// "default" store, used when Google sign-in is not configured.
+const registry = new StoreRegistry({
+  metaPath: process.env.STORE_DB || join(dirname(DB_PATH), 'stores.db'),
+  dataDir: process.env.STORE_DATA_DIR || join(dirname(DB_PATH), 'stores'),
+  defaultDbPath: DB_PATH,
+  defaultStoreName: process.env.STORE_NAME || 'Meri Dukaan',
+});
+const googleAuth = new GoogleAuth();
+const ledger = registry.ledgerFor('default');
+
 // Optional Grok fallback for phrasing the local parser cannot read. Off unless a
 // key is configured; the server never sends the key to the browser.
 const llm = new LlmBrain();
-const apiAgent = new KhataAgent({ ledger, brain: llm });
+const agentFor = (storeLedger) => new KhataAgent({ ledger: storeLedger, brain: llm });
 
 app.use(express.static(join(__dirname, 'public'), {
   setHeaders(res, filePath) {
@@ -56,6 +68,105 @@ app.use(express.static(join(__dirname, 'public'), {
   },
 }));
 app.use(express.json({ limit: '2mb' }));
+app.set('trust proxy', 1);
+
+// ---------------------------------------------------------------------------
+// Store accounts: Google sign-in, sessions, per-store ledgers
+// ---------------------------------------------------------------------------
+
+const SESSION_COOKIE = 'bb_session';
+const OAUTH_STATE_COOKIE = 'bb_oauth_state';
+
+function readCookie(req, name) {
+  const header = req?.headers?.cookie;
+  if (!header) return '';
+  for (const part of String(header).split(';')) {
+    const [key, ...rest] = part.trim().split('=');
+    if (key === name) return decodeURIComponent(rest.join('='));
+  }
+  return '';
+}
+
+function cookieHeader(name, value, { maxAgeMs = 0, secure = false } = {}) {
+  const bits = [`${name}=${encodeURIComponent(value)}`, 'Path=/', 'HttpOnly', 'SameSite=Lax'];
+  if (maxAgeMs > 0) bits.push(`Max-Age=${Math.floor(maxAgeMs / 1000)}`);
+  if (secure) bits.push('Secure');
+  return bits.join('; ');
+}
+
+const isSecureRequest = (req) => Boolean(req.secure) || req.get('x-forwarded-proto') === 'https';
+const redirectUriFor = (req) => process.env.GOOGLE_REDIRECT_URI
+  || `${isSecureRequest(req) ? 'https' : 'http'}://${req.get('host')}/auth/google/callback`;
+
+// Every request resolves to exactly one shop (and therefore one ledger).
+app.use((req, res, next) => {
+  const token = readCookie(req, SESSION_COOKIE);
+  const session = token ? registry.getSession(token) : null;
+  req.sessionToken = token || null;
+  req.authed = Boolean(session);
+  req.store = session || registry.getStore('default');
+  req.ledger = registry.ledgerFor(req.store?.id || 'default');
+  next();
+});
+
+app.get('/api/session', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    success: true,
+    authRequired: googleAuth.enabled,
+    authenticated: req.authed,
+    store: req.store ? {
+      id: req.store.id,
+      name: req.store.store_name || '',
+      needsName: !req.store.store_name,
+    } : null,
+    owner: req.authed ? { email: req.store.email || '', name: req.store.owner_name || '' } : null,
+  });
+});
+
+app.get('/auth/google', (req, res) => {
+  if (!googleAuth.enabled) return res.redirect('/?auth=disabled');
+  const state = randomBytes(16).toString('hex');
+  res.setHeader('Set-Cookie', cookieHeader(OAUTH_STATE_COOKIE, state, {
+    maxAgeMs: 10 * 60 * 1000,
+    secure: isSecureRequest(req),
+  }));
+  return res.redirect(googleAuth.authorizationUrl({ redirectUri: redirectUriFor(req), state }));
+});
+
+app.get('/auth/google/callback', async (req, res) => {
+  if (!googleAuth.enabled) return res.redirect('/');
+  const code = String(req.query.code || '');
+  const state = String(req.query.state || '');
+  const expected = readCookie(req, OAUTH_STATE_COOKIE);
+  if (!code || !state || !expected || state !== expected) {
+    return res.status(400).send('Sign-in state match nahi hua. Dobara koshish karein.');
+  }
+
+  try {
+    const profile = await googleAuth.exchange({ code, redirectUri: redirectUriFor(req) });
+    const store = registry.upsertGoogleStore(profile);
+    const session = registry.createSession(store.id);
+    res.setHeader('Set-Cookie', [
+      cookieHeader(SESSION_COOKIE, session.token, { maxAgeMs: 30 * 24 * 60 * 60 * 1000, secure: isSecureRequest(req) }),
+      cookieHeader(OAUTH_STATE_COOKIE, '', { maxAgeMs: 1, secure: isSecureRequest(req) }),
+    ]);
+    console.log('[Auth] signed in store', store.id);
+    return res.redirect('/');
+  } catch (err) {
+    console.error('[Auth] Google sign-in failed:', err.message);
+    return res.status(400).send('Google sign-in fail ho gaya. Dobara koshish karein.');
+  }
+});
+
+app.post('/auth/logout', (req, res) => {
+  if (req.sessionToken) registry.destroySession(req.sessionToken);
+  res.setHeader('Set-Cookie', cookieHeader(SESSION_COOKIE, '', {
+    maxAgeMs: 1,
+    secure: isSecureRequest(req),
+  }));
+  return res.json({ success: true });
+});
 
 // ---------------------------------------------------------------------------
 // REST API
@@ -75,9 +186,33 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+function requireAuth(req, res, next) {
+  if (!googleAuth.enabled) return next();
+  if (!req.authed) return res.status(401).json({ success: false, error: 'login_required' });
+  return next();
+}
+
+app.use('/api', requireAuth);
+
+// Store onboarding: the shop keeps its own name, shown in the app header.
+app.post('/api/store', (req, res) => {
+  if (!isSameOrigin(req)) {
+    return res.status(403).json({ success: false, error: 'Same-origin request required.' });
+  }
+  if (!googleAuth.enabled) {
+    return res.status(400).json({ success: false, error: 'Google sign-in configured nahi hai.' });
+  }
+  try {
+    const store = registry.setStoreName(req.store.id, req.body?.name);
+    return res.json({ success: true, store: { id: store.id, name: store.store_name } });
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
 app.get('/api/ledger', (req, res) => {
   try {
-    res.json({ success: true, entries: ledger.getAllEntries() });
+    res.json({ success: true, entries: req.ledger.getAllEntries() });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -85,7 +220,7 @@ app.get('/api/ledger', (req, res) => {
 
 app.get('/api/ledger/summary', (req, res) => {
   try {
-    res.json({ success: true, summary: ledger.getCustomerSummary() });
+    res.json({ success: true, summary: req.ledger.getCustomerSummary() });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -93,8 +228,8 @@ app.get('/api/ledger/summary', (req, res) => {
 
 app.get('/api/ledger/customer/:name', (req, res) => {
   try {
-    const entries = ledger.getCustomerEntries(req.params.name);
-    const balance = ledger.getCustomerBalance(req.params.name);
+    const entries = req.ledger.getCustomerEntries(req.params.name);
+    const balance = req.ledger.getCustomerBalance(req.params.name);
     res.json({ success: true, entries, balance });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -104,7 +239,7 @@ app.get('/api/ledger/customer/:name', (req, res) => {
 // Full snapshot used by the browser UI.
 app.get('/api/state', (req, res) => {
   try {
-    res.json({ success: true, ...ledger.getUiState() });
+    res.json({ success: true, ...req.ledger.getUiState() });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -183,8 +318,8 @@ app.delete('/api/settings/gnani-key', (req, res) => {
 app.post('/api/text', async (req, res) => {
   const text = String(req.body?.text || '').trim();
   if (!text) return res.status(400).json({ success: false, error: 'text is required' });
-  const result = await apiAgent.handleAsync(text);
-  return res.json({ success: true, ...result, state: ledger.getUiState() });
+  const result = await agentFor(req.ledger).handleAsync(text);
+  return res.json({ success: true, ...result, state: req.ledger.getUiState() });
 });
 
 /**
@@ -220,9 +355,9 @@ app.post('/api/entries', (req, res) => {
   }
 
   try {
-    const entry = ledger.addEntry({ customerName, amount, type, date, note: note || null });
-    const balance = ledger.getCustomerBalance(entry.customerName).balance;
-    return res.json({ success: true, entry, balance, state: ledger.getUiState() });
+    const entry = req.ledger.addEntry({ customerName, amount, type, date, note: note || null });
+    const balance = req.ledger.getCustomerBalance(entry.customerName).balance;
+    return res.json({ success: true, entry, balance, state: req.ledger.getUiState() });
   } catch (err) {
     return res.status(400).json({ success: false, error: err.message });
   }
@@ -232,9 +367,9 @@ app.delete('/api/entries/:id', (req, res) => {
   if (!isSameOrigin(req)) {
     return res.status(403).json({ success: false, error: 'Same-origin request required.' });
   }
-  const removed = ledger.deleteEntryById(req.params.id);
+  const removed = req.ledger.deleteEntryById(req.params.id);
   if (!removed) return res.status(404).json({ success: false, error: 'Entry nahi mili.' });
-  return res.json({ success: true, removed, state: ledger.getUiState() });
+  return res.json({ success: true, removed, state: req.ledger.getUiState() });
 });
 
 app.delete('/api/customers/:id', (req, res) => {
@@ -242,9 +377,9 @@ app.delete('/api/customers/:id', (req, res) => {
     return res.status(403).json({ success: false, error: 'Same-origin request required.' });
   }
   try {
-    const removed = ledger.deleteCustomerById(req.params.id);
+    const removed = req.ledger.deleteCustomerById(req.params.id);
     if (!removed.customers) return res.status(404).json({ success: false, error: 'Grahak nahi mila.' });
-    return res.json({ success: true, removed, state: ledger.getUiState() });
+    return res.json({ success: true, removed, state: req.ledger.getUiState() });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
@@ -254,9 +389,9 @@ app.patch('/api/customers/:id', (req, res) => {
   if (!isSameOrigin(req)) {
     return res.status(403).json({ success: false, error: 'Same-origin request required.' });
   }
-  const updated = ledger.updateCustomerPhone(req.params.id, req.body?.phone);
+  const updated = req.ledger.updateCustomerPhone(req.params.id, req.body?.phone);
   if (!updated) return res.status(404).json({ success: false, error: 'Grahak nahi mila.' });
-  return res.json({ success: true, state: ledger.getUiState() });
+  return res.json({ success: true, state: req.ledger.getUiState() });
 });
 
 app.get('/api/reports', (req, res) => {
@@ -269,7 +404,7 @@ app.get('/api/reports', (req, res) => {
       : range === 'month' ? startOfMonth
         : range === 'week' ? weekAgo
           : today;
-    res.json({ success: true, range, ...ledger.getReport(from, today) });
+    res.json({ success: true, range, ...req.ledger.getReport(from, today) });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -277,7 +412,7 @@ app.get('/api/reports', (req, res) => {
 
 app.get('/api/activity', (req, res) => {
   try {
-    res.json({ success: true, entries: ledger.getActivity(Number(req.query.limit) || 25) });
+    res.json({ success: true, entries: req.ledger.getActivity(Number(req.query.limit) || 25) });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -292,33 +427,33 @@ app.delete('/api/data', (req, res) => {
   if (req.body?.confirm !== 'DELETE') {
     return res.status(400).json({ success: false, error: 'confirm: DELETE chahiye.' });
   }
-  ledger.resetAll();
+  req.ledger.resetAll();
   console.log('[Data] ledger cleared from the app');
-  return res.json({ success: true, state: ledger.getUiState() });
+  return res.json({ success: true, state: req.ledger.getUiState() });
 });
 
 app.post('/api/reminders/opt-in', (req, res) => {
   const name = String(req.body?.name || '').trim();
   const optedIn = Boolean(req.body?.optIn);
   if (!name) return res.status(400).json({ success: false, error: 'name is required' });
-  const ok = ledger.setReminderOptIn(name, optedIn);
+  const ok = req.ledger.setReminderOptIn(name, optedIn);
   return res.json({ success: ok, name, optIn: optedIn });
 });
 
 app.get('/api/reminders/preview/:name', (req, res) => {
-  const agent = new KhataAgent({ ledger });
+  const agent = agentFor(req.ledger);
   const result = agent.handle(`${req.params.name} ko reminder bhejo`);
   res.json({ success: true, spoken: result.spoken, events: result.events });
 });
 
 app.post('/api/transcripts/purge', (req, res) => {
-  const removed = ledger.purgeTranscripts();
+  const removed = req.ledger.purgeTranscripts();
   res.json({ success: true, purged: removed });
 });
 
 app.post('/api/reset', (req, res) => {
   if (!ALLOW_RESET) return res.status(403).json({ success: false, error: 'reset disabled' });
-  ledger.resetAll();
+  req.ledger.resetAll();
   return res.json({ success: true });
 });
 
@@ -333,13 +468,21 @@ function send(ws, type, payload = {}) {
   }
 }
 
-function sendState(ws) {
-  send(ws, 'ledger_summary', ledger.getUiState({ today: localYmd() }));
+function sendState(ws, storeLedger = ledger) {
+  send(ws, 'ledger_summary', storeLedger.getUiState({ today: localYmd() }));
 }
 
-wss.on('connection', (clientWs) => {
+wss.on('connection', (clientWs, upgradeReq) => {
   const sessionId = randomUUID();
-  const agent = new KhataAgent({ ledger, brain: llm });
+  const upgradeToken = readCookie(upgradeReq, SESSION_COOKIE);
+  const upgradeSession = upgradeToken ? registry.getSession(upgradeToken) : null;
+  if (googleAuth.enabled && !upgradeSession) {
+    clientWs.close(4001, 'login_required');
+    return;
+  }
+  const store = upgradeSession || registry.getStore('default');
+  const storeLedger = registry.ledgerFor(store?.id || 'default');
+  const agent = new KhataAgent({ ledger: storeLedger, brain: llm });
   let sttSocket = null;
   let sttCloseTimer = null;
 
@@ -363,7 +506,7 @@ wss.on('connection', (clientWs) => {
     // also speak it through the browser voice.
     serverTts: Boolean(GNANI_API_KEY),
   });
-  sendState(clientWs);
+  sendState(clientWs, storeLedger);
   speak(clientWs, agent.disclosureText, sessionId);
 
   async function handleText(text) {
@@ -408,7 +551,7 @@ wss.on('connection', (clientWs) => {
     });
 
     speak(clientWs, result.spoken, sessionId);
-    sendState(clientWs);
+    sendState(clientWs, storeLedger);
   }
 
   clientWs.on('message', async (data, isBinary) => {
@@ -438,15 +581,15 @@ wss.on('connection', (clientWs) => {
           break;
 
         case 'get_ledger':
-          sendState(clientWs);
+          sendState(clientWs, storeLedger);
           break;
 
         case 'reset':
           if (ALLOW_RESET) {
-            ledger.resetAll();
+            storeLedger.resetAll();
             agent.lastEntryId = null;
             agent.pending = null;
-            sendState(clientWs);
+            sendState(clientWs, storeLedger);
           }
           break;
 
@@ -592,7 +735,8 @@ async function speak(ws, text, sessionId) {
 // Transcript retention: spoken text is deleted after the judging window.
 if (RETENTION_MINUTES > 0) {
   const timer = setInterval(() => {
-    const purged = ledger.purgeTranscripts({ olderThanMinutes: RETENTION_MINUTES });
+    const purged = registry.allLedgers()
+      .reduce((total, storeLedger) => total + storeLedger.purgeTranscripts({ olderThanMinutes: RETENTION_MINUTES }), 0);
     if (purged > 0) console.log(`[Retention] purged ${purged} transcripts`);
   }, 5 * 60 * 1000);
   timer.unref();

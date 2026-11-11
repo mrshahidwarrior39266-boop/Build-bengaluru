@@ -37,6 +37,18 @@ and every entry or customer can be deleted from the app (Settings → *Data saaf
 karein* wipes everything after an explicit confirmation), so a mistyped or
 test entry never becomes permanent junk.
 
+## Shop accounts
+
+With `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` configured, each shopkeeper
+signs in with Google, names their store once, and gets a **separate SQLite
+ledger file** — another shop's customers are not filtered out, they are absent.
+Sessions are `HttpOnly` cookies and every API route plus the WebSocket requires
+one. Without those variables the app runs in single-shop mode.
+
+Deployment is packaged for Railway: `bolti-bahi/Dockerfile` (Node 22 for
+`node:sqlite`), `railway.json` with the `/api/health` check, and a `/data`
+volume for ledgers. Static hosts cannot run this backend.
+
 ## Architecture
 
 ```
@@ -102,6 +114,7 @@ Suites:
 | `test/test-ledger.js` | SQLite ledger arithmetic, audit trail, name normalisation |
 | `test/test-api.js` | manual-entry, delete, report and clear-data routes; empty ledger on first run; rejected writes create no rows; cross-origin writes refused |
 | `test/test-pwa.js` | installable mobile shell: manifest, icon dimensions, service worker, offline behaviour, no fake data |
+| `test/test-auth-store.js` | Google sign-in against a local stub: state check, sessions, two shops isolated, socket auth, logout |
 | `test/test-llm-brain.js` | Grok fallback cannot act without a key, rejects bad JSON/amounts/directions/low confidence, times out safely, and is skipped when the local parser already understands the sentence |
 | `test/test-gnani-contract.js` | offline wire-protocol contract for Prisma STT and Timbre TTS (headers, 1024-byte framing, `commit`, response shapes) |
 | `test/judge-evaluation.js` | 100-point behavioural judge with hard compliance gates; no source-grep scoring |

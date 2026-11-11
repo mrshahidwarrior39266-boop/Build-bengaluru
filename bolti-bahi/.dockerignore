@@ -1,0 +1,14 @@
+node_modules
+android
+test
+certs
+*.db
+*.db-wal
+*.db-shm
+stores
+stores.db
+.env
+.gnani-key
+.bolti-bahi-key
+*.idsig
+artifacts
