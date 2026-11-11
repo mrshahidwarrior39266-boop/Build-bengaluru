@@ -409,6 +409,100 @@ export class LedgerDB {
     return this.db.prepare('DELETE FROM ledger_entries WHERE id = ?').run(entryId);
   }
 
+  /** Remove one entry. Returns how many rows went away (0 or 1). */
+  deleteEntryById(entryId) {
+    const result = this.db.prepare('DELETE FROM ledger_entries WHERE id = ?').run(entryId);
+    return Number(result.changes || 0);
+  }
+
+  /** Remove a customer and their whole history, atomically. */
+  deleteCustomerById(customerId) {
+    this.db.exec('BEGIN');
+    try {
+      const entries = this.db.prepare('DELETE FROM ledger_entries WHERE customer_id = ?').run(customerId).changes;
+      const customers = this.db.prepare('DELETE FROM customers WHERE id = ?').run(customerId).changes;
+      this.db.exec('COMMIT');
+      return { customers: Number(customers || 0), entries: Number(entries || 0) };
+    } catch (err) {
+      try { this.db.exec('ROLLBACK'); } catch { /* already rolled back */ }
+      throw err;
+    }
+  }
+
+  updateCustomerPhone(customerId, phone) {
+    const clean = String(phone || '').replace(/[^\d+]/g, '').slice(0, 15);
+    const result = this.db.prepare(
+      "UPDATE customers SET phone = ?, updated_at = datetime('now') WHERE id = ?",
+    ).run(clean || null, customerId);
+    return Number(result.changes || 0);
+  }
+
+  /** Totals for a date window, for the Report view. */
+  getReport(from, to) {
+    const totals = this.db.prepare(`
+      SELECT
+        COUNT(*) AS entries,
+        COALESCE(SUM(CASE WHEN type = 'credit' THEN amount ELSE 0 END), 0) AS credit,
+        COALESCE(SUM(CASE WHEN type = 'payment' THEN amount ELSE 0 END), 0) AS payment,
+        COUNT(DISTINCT customer_id) AS customers
+      FROM ledger_entries WHERE date BETWEEN ? AND ?
+    `).get(from, to);
+
+    const daily = this.db.prepare(`
+      SELECT date,
+        COALESCE(SUM(CASE WHEN type = 'credit' THEN amount ELSE 0 END), 0) AS credit,
+        COALESCE(SUM(CASE WHEN type = 'payment' THEN amount ELSE 0 END), 0) AS payment
+      FROM ledger_entries WHERE date BETWEEN ? AND ?
+      GROUP BY date ORDER BY date DESC LIMIT 31
+    `).all(from, to);
+
+    const topOutstanding = this.getCustomerSummary()
+      .filter((row) => row.balance > 0)
+      .slice(0, 5)
+      .map((row) => ({
+        id: row.customer_id,
+        name: row.customer_name,
+        balance: row.balance,
+        lastTransactionDate: row.last_transaction_date || '',
+      }));
+
+    return {
+      from,
+      to,
+      totals: {
+        entries: Number(totals.entries || 0),
+        credit: Number(totals.credit || 0),
+        payment: Number(totals.payment || 0),
+        net: Number(totals.credit || 0) - Number(totals.payment || 0),
+        customers: Number(totals.customers || 0),
+      },
+      daily,
+      topOutstanding,
+      totalOutstanding: this.getTotalOutstanding(),
+    };
+  }
+
+  /** Every entry, newest first, for the activity feed. */
+  getActivity(limit = 25) {
+    const count = Number.isFinite(Number(limit)) && Number(limit) > 0 ? Math.floor(Number(limit)) : 25;
+    return this.db.prepare(`
+      SELECT e.id, e.type, e.amount, e.date, e.note, e.is_corrected, e.created_at,
+             c.id AS customer_id, c.name AS customer_name
+      FROM ledger_entries e JOIN customers c ON e.customer_id = c.id
+      ORDER BY e.date DESC, e.rowid DESC LIMIT ?
+    `).all(count).map((row) => ({
+      id: row.id,
+      customerId: row.customer_id,
+      customerName: row.customer_name,
+      type: row.type,
+      amount: row.amount,
+      date: row.date,
+      note: this._decryptNote(row.note) || '',
+      isCorrected: Boolean(row.is_corrected),
+      createdAt: row.created_at,
+    }));
+  }
+
   _customerLedger(customerId) {
     const rows = this.db.prepare(`
       SELECT e.* FROM ledger_entries e WHERE e.customer_id = ? ORDER BY e.rowid ASC

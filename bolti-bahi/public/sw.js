@@ -6,7 +6,7 @@
  * with an explicit offline error instead of a fake success.
  */
 
-const CACHE = 'bolti-bahi-shell-v1';
+const CACHE = 'bolti-bahi-shell-v2';
 const SHELL = [
   '/',
   '/index.html',

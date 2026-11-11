@@ -1363,8 +1363,483 @@
       }
     }
   </style>
+
+  <style>
+    /* ==========================================================================
+       APP SHELL: dashboard, customers, reports, bottom navigation, sheets.
+       Kept in one file with plain CSS so a 2 GB phone parses it instantly.
+       ========================================================================== */
+    :root {
+      --ink: #1B1A17;
+      --ink-soft: #6B6459;
+      --paper: #FAF7F2;
+      --card: #FFFFFF;
+      --line: #EAE3D9;
+      --brand: #1F5136;
+      --brand-dark: #143923;
+      --brand-tint: #EAF3EC;
+      --gold: #B8860B;
+      --udhaar: #C0392B;
+      --jama: #1E7A46;
+      --radius: 16px;
+      --tab-h: 62px;
+    }
+
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      height: 100dvh;
+      overflow: hidden;
+    }
+
+    /* The old chat card becomes one tab, not the whole app. */
+    .main-container,
+    .bottom-controls-section {
+      display: none;
+    }
+
+    body[data-tab="baat"] .main-container {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      width: 100%;
+      max-width: 720px;
+      margin: 0 auto;
+      background: var(--paper);
+      border-left: none;
+      border-right: none;
+      overflow: hidden;
+      padding-bottom: 0;
+    }
+
+    body[data-tab="baat"] .bottom-controls-section {
+      display: block;
+      flex-shrink: 0;
+      width: 100%;
+      max-width: 720px;
+      margin: 0 auto;
+      /* Keep the mic clear of the fixed tab bar. */
+      padding-bottom: calc(var(--tab-h) + env(safe-area-inset-bottom, 0px) + 6px);
+    }
+
+    .app-main {
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 14px 14px calc(var(--tab-h) + 22px);
+      max-width: 720px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .view { display: none; }
+    .view.is-active { display: block; }
+
+    /* Header: tighter, and no gold Khata button competing with the tabs. */
+    header { padding: 10px 14px; }
+    .brand-title { font-size: 1.12rem; }
+    .brand-tagline { font-size: 0.68rem; }
+    .btn-header-ledger { display: none; }
+    .btn-install { display: none; }
+    .btn-install.available { display: inline-flex; }
+    .status-badge { padding: 4px 8px; font-size: 0.68rem; }
+
+    /* Banners used to overlap the header; they now sit in normal flow. */
+    .ai-disclosure-banner {
+      position: static;
+      margin: 0;
+      border-radius: 0;
+      font-size: 0.72rem;
+      padding: 7px 12px;
+      flex-shrink: 0;
+    }
+    .ai-speaking-toast {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      top: auto;
+      bottom: calc(var(--tab-h) + 16px);
+      z-index: 60;
+    }
+    /* Speech belongs to the Baat tab; it must never sit over the dashboard. */
+    body:not([data-tab="baat"]) .ai-speaking-toast { display: none !important; }
+    /* …and on the Baat tab it must not cover the mic button. */
+    body[data-tab="baat"] .ai-speaking-toast {
+      top: 122px;
+      bottom: auto;
+      z-index: 55;
+    }
+
+    /* Hero balance */
+    .bb-hero {
+      background: linear-gradient(150deg, #245B3C 0%, #16402A 100%);
+      color: #fff;
+      border-radius: 20px;
+      padding: 18px;
+      box-shadow: 0 10px 24px rgba(20, 57, 35, 0.22);
+      position: relative;
+      overflow: hidden;
+    }
+    .bb-hero::after {
+      content: '';
+      position: absolute;
+      right: -40px;
+      top: -40px;
+      width: 140px;
+      height: 140px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .bb-hero-label {
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #CFE3D6;
+      font-weight: 600;
+    }
+    .bb-hero-value {
+      font-size: 2.05rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin: 4px 0 2px;
+      font-variant-numeric: tabular-nums;
+    }
+    .bb-hero-sub { font-size: 0.76rem; color: #B9D2C3; }
+    .bb-hero-cta {
+      position: relative;
+      z-index: 1;
+      margin-top: 14px;
+      display: flex;
+      gap: 8px;
+    }
+
+    .bb-btn {
+      border: 0;
+      border-radius: 12px;
+      padding: 11px 14px;
+      font-size: 0.86rem;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      transition: transform 0.12s ease, opacity 0.12s ease;
+    }
+    .bb-btn:active { transform: scale(0.98); }
+    .bb-btn-primary { background: #fff; color: var(--brand-dark); flex: 1; }
+    .bb-btn-ghost {
+      background: rgba(255, 255, 255, 0.14);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      flex: 1;
+    }
+    .bb-btn-solid { background: var(--brand); color: #fff; }
+    .bb-btn-danger { background: #FDECEA; color: var(--udhaar); border: 1px solid #F3C7C1; }
+    .bb-btn-block { width: 100%; }
+
+    .bb-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+    .bb-stat {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px;
+    }
+    .bb-stat-label { font-size: 0.7rem; color: var(--ink-soft); font-weight: 600; }
+    .bb-stat-value {
+      font-size: 1.18rem;
+      font-weight: 800;
+      margin-top: 3px;
+      font-variant-numeric: tabular-nums;
+    }
+    .bb-stat-value.udhaar { color: var(--udhaar); }
+    .bb-stat-value.jama { color: var(--jama); }
+    .bb-stat-note { font-size: 0.66rem; color: var(--ink-soft); margin-top: 2px; }
+
+    .bb-panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      margin-top: 12px;
+      overflow: hidden;
+    }
+    .bb-panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px 8px;
+    }
+    .bb-panel-title { font-size: 0.86rem; font-weight: 800; }
+    .bb-panel-link {
+      background: none;
+      border: 0;
+      color: var(--brand);
+      font-size: 0.74rem;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      padding: 4px;
+    }
+
+    .bb-row {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 11px 14px;
+      border-top: 1px solid var(--line);
+      background: var(--card);
+      width: 100%;
+      text-align: left;
+      border-left: 0;
+      border-right: 0;
+      border-bottom: 0;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .bb-row:active { background: #F7F4EF; }
+    .bb-avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: var(--brand-tint);
+      color: var(--brand);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 0.95rem;
+      flex-shrink: 0;
+    }
+    .bb-avatar.udhaar { background: #FDECEA; color: var(--udhaar); }
+    .bb-row-main { flex: 1; min-width: 0; }
+    .bb-row-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .bb-row-sub { font-size: 0.7rem; color: var(--ink-soft); margin-top: 2px; }
+    .bb-row-amount {
+      font-size: 0.92rem;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .bb-row-amount.udhaar { color: var(--udhaar); }
+    .bb-row-amount.jama { color: var(--jama); }
+    .bb-icon-btn {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink-soft);
+      font-size: 1rem;
+      line-height: 1;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .bb-icon-btn.danger { color: var(--udhaar); border-color: #F3C7C1; }
+
+    .bb-empty {
+      text-align: center;
+      padding: 26px 18px;
+      color: var(--ink-soft);
+    }
+    .bb-empty-icon { font-size: 1.7rem; margin-bottom: 6px; }
+    .bb-empty-title { font-size: 0.88rem; font-weight: 700; color: var(--ink); margin-bottom: 3px; }
+    .bb-empty-text { font-size: 0.76rem; line-height: 1.45; }
+
+    .bb-search {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 9px 12px;
+      margin-bottom: 10px;
+    }
+    .bb-search input {
+      border: 0;
+      outline: 0;
+      flex: 1;
+      font-size: 0.86rem;
+      font-family: inherit;
+      background: transparent;
+      color: var(--ink);
+      user-select: text;
+    }
+
+    .bb-chips { display: flex; gap: 7px; overflow-x: auto; padding-bottom: 4px; }
+    .bb-chip {
+      border: 1px solid var(--line);
+      background: var(--card);
+      color: var(--ink-soft);
+      border-radius: 999px;
+      padding: 7px 12px;
+      font-size: 0.76rem;
+      font-weight: 700;
+      font-family: inherit;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .bb-chip.is-active { background: var(--brand); border-color: var(--brand); color: #fff; }
+
+    .bb-total-card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin-top: 10px;
+    }
+    .bb-total-line {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.84rem;
+      padding: 6px 0;
+    }
+    .bb-total-line + .bb-total-line { border-top: 1px dashed var(--line); }
+    .bb-total-line strong { font-variant-numeric: tabular-nums; }
+
+    /* Bottom navigation */
+    .bb-tabbar {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: calc(var(--tab-h) + env(safe-area-inset-bottom, 0px));
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      background: rgba(255, 255, 255, 0.98);
+      border-top: 1px solid var(--line);
+      display: flex;
+      z-index: 70;
+    }
+    .bb-tab {
+      flex: 1;
+      border: 0;
+      background: none;
+      font-family: inherit;
+      font-size: 0.66rem;
+      font-weight: 700;
+      color: #8C8578;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      cursor: pointer;
+      padding: 0;
+    }
+    .bb-tab svg { width: 22px; height: 22px; fill: currentColor; }
+    .bb-tab.is-active { color: var(--brand); }
+    .bb-tab.is-active svg { transform: translateY(-1px); }
+
+    /* Bottom sheets */
+    .bb-sheet-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(24, 22, 18, 0.45);
+      z-index: 90;
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    .bb-sheet-overlay.is-open { display: flex; }
+    .bb-sheet {
+      background: var(--card);
+      width: 100%;
+      max-width: 520px;
+      border-radius: 20px 20px 0 0;
+      max-height: 90dvh;
+      overflow-y: auto;
+      padding: 16px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+      animation: sheet-up 0.18s ease-out;
+    }
+    @keyframes sheet-up { from { transform: translateY(16px); opacity: 0.6; } to { transform: none; opacity: 1; } }
+    .bb-sheet-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .bb-sheet-title { font-size: 1rem; font-weight: 800; }
+    .bb-sheet-sub { font-size: 0.72rem; color: var(--ink-soft); margin-top: 2px; }
+
+    .bb-field { margin-bottom: 11px; }
+    .bb-field label {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #524B40;
+      margin-bottom: 5px;
+    }
+    .bb-field input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      padding: 11px 12px;
+      font-size: 0.94rem;
+      font-family: inherit;
+      background: #fff;
+      color: var(--ink);
+      outline: none;
+      user-select: text;
+    }
+    .bb-field input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(31, 81, 54, 0.1); }
+    .bb-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    .bb-segment { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .bb-segment button {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 11px;
+      padding: 11px 8px;
+      font-family: inherit;
+      font-size: 0.84rem;
+      font-weight: 800;
+      color: var(--ink-soft);
+      cursor: pointer;
+    }
+    .bb-segment button.is-active.udhaar { background: #FDECEA; border-color: var(--udhaar); color: var(--udhaar); }
+    .bb-segment button.is-active.jama { background: #E8F5EE; border-color: var(--jama); color: var(--jama); }
+
+    .bb-form-error {
+      color: var(--udhaar);
+      font-size: 0.76rem;
+      min-height: 16px;
+      margin: 2px 0 8px;
+    }
+
+    .bb-danger-zone {
+      margin-top: 16px;
+      border-top: 1px dashed var(--line);
+      padding-top: 12px;
+    }
+    .bb-danger-title { font-size: 0.74rem; font-weight: 800; color: var(--udhaar); margin-bottom: 4px; }
+    .bb-danger-note { font-size: 0.7rem; color: var(--ink-soft); line-height: 1.45; margin-bottom: 8px; }
+
+    /* Chat tab: keep bubbles, remove the wasted side margins on desktop. */
+    .chat-history { padding: 12px 12px 6px; background: var(--paper); }
+    .suggestions-container { display: none; }
+    .msg-user, .msg-ai { max-width: 100%; }
+    .bottom-controls-section {
+      background: #fff;
+      border-top: 1px solid var(--line);
+      padding-bottom: 6px;
+    }
+
+    @media (min-width: 760px) {
+      body { background: #EFEAE2; }
+      header { max-width: 720px; width: 100%; margin: 0 auto; border-radius: 0 0 4px 4px; }
+      .app-main { padding-bottom: 24px; }
+      body[data-tab="baat"] .bottom-controls-section { padding-bottom: 10px; }
+    }
+  </style>
 </head>
-<body>
+<body data-tab="home">
 
   <!-- OFFLINE WARNING -->
   <div class="offline-banner" id="offline-banner">
@@ -1434,6 +1909,192 @@
     <span>AI Bol Raha Hai...</span>
   </div>
 
+  <!-- APP VIEWS: dashboard, customers, reports -->
+  <main class="app-main" id="app-main">
+
+    <!-- HOME -->
+    <section class="view is-active" id="view-home">
+      <div class="bb-hero">
+        <div class="bb-hero-label">Kul Udhaar Baki</div>
+        <div class="bb-hero-value" id="bb-outstanding">₹0</div>
+        <div class="bb-hero-sub" id="bb-outstanding-sub">Koi udhaar baki nahi — hisaab saaf hai</div>
+        <div class="bb-hero-cta">
+          <button class="bb-btn bb-btn-primary" type="button" id="bb-cta-voice">🎙️ Bolkar likhein</button>
+          <button class="bb-btn bb-btn-ghost" type="button" id="bb-cta-manual">✍️ Khud likhein</button>
+        </div>
+      </div>
+
+      <div class="bb-stats">
+        <div class="bb-stat">
+          <div class="bb-stat-label">Aaj ka Udhaar</div>
+          <div class="bb-stat-value udhaar" id="bb-today-credit">₹0</div>
+          <div class="bb-stat-note" id="bb-today-credit-note">0 len-den</div>
+        </div>
+        <div class="bb-stat">
+          <div class="bb-stat-label">Aaj ki Wasooli</div>
+          <div class="bb-stat-value jama" id="bb-today-payment">₹0</div>
+          <div class="bb-stat-note" id="bb-today-payment-note">0 len-den</div>
+        </div>
+      </div>
+
+      <div class="bb-panel">
+        <div class="bb-panel-head">
+          <div class="bb-panel-title">Haal ka Len-Den</div>
+          <button class="bb-panel-link" type="button" id="bb-all-activity">Sab dekhein</button>
+        </div>
+        <div id="bb-home-activity"></div>
+      </div>
+    </section>
+
+    <!-- CUSTOMERS -->
+    <section class="view" id="view-grahak">
+      <div class="bb-search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="#8C8578"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        <input type="text" id="bb-grahak-search" placeholder="Grahak ka naam ya number khojein" autocomplete="off" />
+      </div>
+      <div class="bb-panel" style="margin-top:0;">
+        <div class="bb-panel-head">
+          <div class="bb-panel-title">Sabhi Grahak <span id="bb-customer-count" style="color:#8C8578;font-weight:600;"></span></div>
+          <button class="bb-panel-link" type="button" id="bb-add-customer">+ Naya jodein</button>
+        </div>
+        <div id="bb-customer-list"></div>
+      </div>
+    </section>
+
+    <!-- REPORTS -->
+    <section class="view" id="view-report">
+      <div class="bb-chips" id="bb-range-chips">
+        <button class="bb-chip is-active" type="button" data-range="today">Aaj</button>
+        <button class="bb-chip" type="button" data-range="week">Hafta</button>
+        <button class="bb-chip" type="button" data-range="month">Mahina</button>
+        <button class="bb-chip" type="button" data-range="all">Sab</button>
+      </div>
+
+      <div class="bb-total-card">
+        <div class="bb-total-line"><span>Udhaar diya</span><strong class="udhaar" style="color:var(--udhaar)" id="bb-report-credit">₹0</strong></div>
+        <div class="bb-total-line"><span>Wasooli (jama)</span><strong style="color:var(--jama)" id="bb-report-payment">₹0</strong></div>
+        <div class="bb-total-line"><span>Net badla</span><strong id="bb-report-net">₹0</strong></div>
+        <div class="bb-total-line"><span>Len-den / grahak</span><strong id="bb-report-count">0 / 0</strong></div>
+      </div>
+
+      <div class="bb-panel">
+        <div class="bb-panel-head">
+          <div class="bb-panel-title">Sabse zyada baki</div>
+          <button class="bb-panel-link" type="button" id="bb-export-csv">⬇️ CSV</button>
+        </div>
+        <div id="bb-report-top"></div>
+      </div>
+
+      <div class="bb-total-card">
+        <div class="bb-total-line"><span>Kul baki (sab grahak)</span><strong id="bb-report-outstanding">₹0</strong></div>
+        <div class="bb-total-line"><span>Kul grahak</span><strong id="bb-report-total-customers">0</strong></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- BOTTOM NAVIGATION -->
+  <nav class="bb-tabbar" aria-label="Main navigation">
+    <button class="bb-tab is-active" type="button" data-tab="home">
+      <svg viewBox="0 0 24 24"><path d="M11 3h2v9.2l3.3-3.3 1.4 1.4L12 16l-5.7-5.7 1.4-1.4L11 12.2V3zM5 19h14v2H5z"/></svg>
+      <span>Hisaab</span>
+    </button>
+    <button class="bb-tab" type="button" data-tab="grahak">
+      <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+      <span>Grahak</span>
+    </button>
+    <button class="bb-tab" type="button" data-tab="report">
+      <svg viewBox="0 0 24 24"><path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/></svg>
+      <span>Report</span>
+    </button>
+    <button class="bb-tab" type="button" data-tab="baat">
+      <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+      <span>Baat</span>
+    </button>
+  </nav>
+
+  <!-- MANUAL ENTRY SHEET -->
+  <div class="bb-sheet-overlay" id="bb-entry-sheet">
+    <div class="bb-sheet" role="dialog" aria-modal="true" aria-labelledby="bb-entry-title">
+      <div class="bb-sheet-head">
+        <div>
+          <div class="bb-sheet-title" id="bb-entry-title">Naya len-den</div>
+          <div class="bb-sheet-sub">Udhaar ya jama, dono yahan likh sakte hain</div>
+        </div>
+        <button class="bb-icon-btn" type="button" data-close-sheet="bb-entry-sheet" aria-label="Band karein">✕</button>
+      </div>
+
+      <div class="bb-field">
+        <label for="bb-entry-name">Grahak ka naam</label>
+        <input id="bb-entry-name" type="text" list="bb-name-list" autocomplete="off" placeholder="Jaise: Sunita Devi" maxlength="60" />
+        <datalist id="bb-name-list"></datalist>
+      </div>
+
+      <div class="bb-field">
+        <label>Kya likhna hai?</label>
+        <div class="bb-segment" id="bb-entry-type">
+          <button type="button" class="udhaar is-active" data-type="credit">Udhaar diya</button>
+          <button type="button" class="jama" data-type="payment">Jama hua</button>
+        </div>
+      </div>
+
+      <div class="bb-field-row">
+        <div class="bb-field">
+          <label for="bb-entry-amount">Rashi (₹)</label>
+          <input id="bb-entry-amount" type="number" inputmode="numeric" min="1" step="1" placeholder="0" />
+        </div>
+        <div class="bb-field">
+          <label for="bb-entry-date">Tareekh</label>
+          <input id="bb-entry-date" type="date" />
+        </div>
+      </div>
+
+      <div class="bb-field">
+        <label for="bb-entry-note">Note (optional)</label>
+        <input id="bb-entry-note" type="text" maxlength="200" placeholder="Jaise: doodh aur biscuit" />
+      </div>
+
+      <div class="bb-form-error" id="bb-entry-error"></div>
+      <button class="bb-btn bb-btn-solid bb-btn-block" type="button" id="bb-entry-save">Save karein</button>
+    </div>
+  </div>
+
+  <!-- CUSTOMER SHEET -->
+  <div class="bb-sheet-overlay" id="bb-customer-sheet">
+    <div class="bb-sheet" role="dialog" aria-modal="true" aria-labelledby="bb-customer-name">
+      <div class="bb-sheet-head">
+        <div>
+          <div class="bb-sheet-title" id="bb-customer-name">Grahak</div>
+          <div class="bb-sheet-sub" id="bb-customer-meta">—</div>
+        </div>
+        <button class="bb-icon-btn" type="button" data-close-sheet="bb-customer-sheet" aria-label="Band karein">✕</button>
+      </div>
+
+      <div class="bb-total-card" style="margin-top:0;">
+        <div class="bb-total-line"><span>Baki rashi</span><strong id="bb-customer-balance">₹0</strong></div>
+      </div>
+
+      <div class="bb-field" style="margin-top:12px;">
+        <label for="bb-customer-phone">Mobile (optional, reminder ke liye)</label>
+        <div style="display:flex;gap:8px;">
+          <input id="bb-customer-phone" type="tel" inputmode="tel" maxlength="15" placeholder="10 digit number" />
+          <button class="bb-btn bb-btn-solid" type="button" id="bb-customer-phone-save" style="flex-shrink:0;">Save</button>
+        </div>
+      </div>
+
+      <div class="bb-panel" style="margin-top:12px;">
+        <div class="bb-panel-head"><div class="bb-panel-title">History</div></div>
+        <div id="bb-customer-history"></div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button class="bb-btn bb-btn-solid" type="button" id="bb-customer-add" style="flex:1;">+ Naya len-den</button>
+        <button class="bb-btn bb-btn-danger" type="button" id="bb-customer-delete">Grahak hatayein</button>
+      </div>
+      <div class="bb-form-error" id="bb-customer-error"></div>
+    </div>
+  </div>
+
   <!-- MAIN CONTAINER -->
   <div class="main-container">
     
@@ -1441,22 +2102,6 @@
     <div class="chat-history" id="chat-history">
       
       <div class="chat-date-divider">Aaj ka Hisaab</div>
-
-      <!-- Welcome AI message -->
-      <div class="msg-ai">
-        <div class="ai-header">
-          <span class="ai-tag">
-            <span>✨</span> Bolti Bahi Sahayak
-          </span>
-          <button class="btn-speaker-replay" onclick="speakText('Namaste! Main aapka Bolti Bahi assistant hoon. Mic daba kar bolein jaise: Ramesh ko 200 rupaye udhaar do.')" title="Dobara sunein">
-            <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
-          </button>
-        </div>
-        <div class="msg-text">
-          Namaste! 🙏 Main aapka dukaan sahayak hoon. Mic daba kar bolein ya neeche likhein:
-        </div>
-        <div class="msg-meta">Abhi</div>
-      </div>
 
       <!-- Quick Suggestion Chips -->
       <div class="suggestions-container" id="suggestions-box">
@@ -1542,7 +2187,7 @@
 
         <!-- Tip Text -->
         <div class="voice-status-tip" id="voice-tip-text">
-          Hold to Talk
+          Daba kar bolein
         </div>
 
       </div>
@@ -1654,6 +2299,12 @@
           style="margin-top: 12px; background: #FFFFFF; border-color: #D8CFC4;">
           🖥️ Server URL badlein (app)
         </button>
+
+        <div class="bb-danger-zone">
+          <div class="bb-danger-title">Data saaf karein</div>
+          <div class="bb-danger-note" id="bb-data-note">Saara khata (grahak + len-den) delete ho jayega. Yeh wapas nahi aata.</div>
+          <button class="bb-btn bb-btn-danger bb-btn-block" type="button" id="bb-clear-data">Saara data delete karein</button>
+        </div>
       </div>
     </div>
   </div>
@@ -2905,6 +3556,498 @@
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
     }
+  </script>
+
+  <script>
+    /**
+     * App shell: tabs, dashboard, customers, reports, manual entry, deletion.
+     * Plain DOM + fetch so it works in a WebView and on a 2 GB phone, and it
+     * reuses the WebSocket/audio layer already defined above.
+     */
+    const BB = (() => {
+      const $ = (id) => document.getElementById(id);
+      const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN')}`;
+      const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+      ));
+      const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+      let state = { summary: { totalOutstanding: 0, todayCredit: 0, todayPayment: 0 }, customers: [] };
+      let activity = [];
+      let currentTab = 'home';
+      let reportRange = 'today';
+      let entryType = 'credit';
+      let activeCustomerId = null;
+      let refreshTimer = null;
+
+      const todayYmd = () => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      };
+
+      const fmtDate = (ymd) => {
+        if (!ymd) return '';
+        const [y, m, d] = String(ymd).split('-').map(Number);
+        if (!y || !m || !d) return String(ymd);
+        return `${d} ${MONTHS[m - 1]}`;
+      };
+
+      function flash(text) {
+        const el = document.createElement('div');
+        el.textContent = text;
+        el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--tab-h) + 18px);'
+          + 'background:#1F5136;color:#fff;padding:10px 16px;border-radius:999px;font-size:.8rem;'
+          + 'font-weight:700;z-index:120;box-shadow:0 8px 20px rgba(0,0,0,.2);max-width:88vw;text-align:center;';
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 2200);
+      }
+
+      function emptyBlock(icon, title, text) {
+        return `<div class="bb-empty"><div class="bb-empty-icon">${icon}</div>`
+          + `<div class="bb-empty-title">${esc(title)}</div>`
+          + `<div class="bb-empty-text">${esc(text)}</div></div>`;
+      }
+
+      // ---------------------------------------------------------------- tabs
+      function setTab(tab) {
+        currentTab = tab;
+        document.body.dataset.tab = tab;
+        document.querySelectorAll('.view').forEach((view) => {
+          view.classList.toggle('is-active', view.id === `view-${tab}`);
+        });
+        document.querySelectorAll('.bb-tab').forEach((btn) => {
+          btn.classList.toggle('is-active', btn.dataset.tab === tab);
+        });
+        $('app-main').style.display = tab === 'baat' ? 'none' : '';
+        if (tab === 'report') renderReport();
+        if (tab === 'grahak') renderCustomers();
+        if (tab === 'home') $('app-main').scrollTop = 0;
+      }
+
+      // ------------------------------------------------------------ activity
+      function renderActivity(container, rows, emptyTitle) {
+        if (!rows.length) {
+          container.innerHTML = emptyBlock('🧾', emptyTitle, 'Neeche “Khud likhein” se pehla hisaab likhein. Koi sample naam pehle se nahi hai.');
+          return;
+        }
+        container.innerHTML = '';
+        rows.forEach((entry) => {
+          const isCredit = entry.type === 'credit';
+          const row = document.createElement('div');
+          row.className = 'bb-row';
+          row.innerHTML = `
+            <div class="bb-avatar ${isCredit ? 'udhaar' : ''}">${esc((entry.customerName || '?').charAt(0).toUpperCase())}</div>
+            <div class="bb-row-main">
+              <div class="bb-row-title">${esc(entry.customerName)}</div>
+              <div class="bb-row-sub">${esc(fmtDate(entry.date))} · ${isCredit ? 'Udhaar' : 'Jama'}${entry.note ? ` · ${esc(entry.note)}` : ''}</div>
+            </div>
+            <div class="bb-row-amount ${isCredit ? 'udhaar' : 'jama'}">${isCredit ? '+' : '−'}${money(entry.amount)}</div>
+            <button class="bb-icon-btn danger" type="button" data-del="${esc(entry.id)}" aria-label="Entry delete karein">🗑</button>
+          `;
+          row.querySelector('[data-del]').addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            deleteEntry(entry.id);
+          });
+          row.addEventListener('click', () => openCustomer(entry.customerId));
+          container.appendChild(row);
+        });
+      }
+
+      // ---------------------------------------------------------------- home
+      function renderHome() {
+        const summary = state.summary || {};
+        const debtors = state.customers.filter((c) => c.balance > 0).length;
+        $('bb-outstanding').textContent = money(summary.totalOutstanding);
+        $('bb-outstanding-sub').textContent = debtors
+          ? `${debtors} grahak se wasooli baaki hai`
+          : 'Koi udhaar baki nahi — hisaab saaf hai';
+        $('bb-today-credit').textContent = money(summary.todayCredit);
+        $('bb-today-payment').textContent = money(summary.todayPayment);
+
+        const today = todayYmd();
+        const creditCount = activity.filter((e) => e.date === today && e.type === 'credit').length;
+        const paymentCount = activity.filter((e) => e.date === today && e.type === 'payment').length;
+        $('bb-today-credit-note').textContent = `${creditCount} len-den`;
+        $('bb-today-payment-note').textContent = `${paymentCount} len-den`;
+
+        renderActivity($('bb-home-activity'), activity.slice(0, 6), 'Abhi koi len-den nahi');
+        fillNameList();
+      }
+
+      // ----------------------------------------------------------- customers
+      function renderCustomers(query) {
+        const q = String(query ?? $('bb-grahak-search').value ?? '').toLowerCase().trim();
+        const list = state.customers.filter((c) => !q
+          || c.name.toLowerCase().includes(q)
+          || String(c.phone || '').includes(q));
+
+        $('bb-customer-count').textContent = state.customers.length ? `(${state.customers.length})` : '';
+        const container = $('bb-customer-list');
+        container.innerHTML = '';
+
+        if (!list.length) {
+          container.innerHTML = q
+            ? emptyBlock('🔍', 'Koi grahak nahi mila', `“${q}” se koi naam match nahi hua.`)
+            : emptyBlock('👤', 'Abhi koi grahak nahi', 'Pehla len-den likhne par grahak apne aap jud jayega.');
+          return;
+        }
+
+        list.forEach((customer) => {
+          const isDue = customer.balance > 0;
+          const row = document.createElement('div');
+          row.className = 'bb-row';
+          row.innerHTML = `
+            <div class="bb-avatar ${isDue ? 'udhaar' : ''}">${esc((customer.name || '?').charAt(0).toUpperCase())}</div>
+            <div class="bb-row-main">
+              <div class="bb-row-title">${esc(customer.name)}</div>
+              <div class="bb-row-sub">${(customer.transactions || []).length} len-den${customer.lastUpdated ? ` · aakhri ${esc(fmtDate(customer.lastUpdated))}` : ''}</div>
+            </div>
+            <div class="bb-row-amount ${isDue ? 'udhaar' : 'jama'}">${money(customer.balance)}</div>
+          `;
+          row.addEventListener('click', () => openCustomer(customer.id));
+          container.appendChild(row);
+        });
+      }
+
+      function fillNameList() {
+        const list = $('bb-name-list');
+        if (!list) return;
+        list.innerHTML = state.customers.map((c) => `<option value="${esc(c.name)}"></option>`).join('');
+      }
+
+      // ------------------------------------------------------ customer sheet
+      function openCustomer(customerId) {
+        const customer = state.customers.find((c) => c.id === customerId);
+        if (!customer) return;
+        activeCustomerId = customerId;
+        renderCustomerSheet();
+        openSheet('bb-customer-sheet');
+      }
+
+      function renderCustomerSheet() {
+        const customer = state.customers.find((c) => c.id === activeCustomerId);
+        if (!customer) { closeSheet('bb-customer-sheet'); return; }
+
+        $('bb-customer-name').textContent = customer.name;
+        $('bb-customer-meta').textContent = `${(customer.transactions || []).length} len-den${customer.lastUpdated ? ` · aakhri ${fmtDate(customer.lastUpdated)}` : ''}`;
+        const balanceEl = $('bb-customer-balance');
+        balanceEl.textContent = money(customer.balance);
+        balanceEl.style.color = customer.balance > 0 ? 'var(--udhaar)' : 'var(--jama)';
+        $('bb-customer-phone').value = customer.phone || '';
+
+        const history = customer.transactions || [];
+        const container = $('bb-customer-history');
+        if (!history.length) {
+          container.innerHTML = emptyBlock('📄', 'Koi len-den nahi', 'Is grahak ka pehla hisaab likhein.');
+          return;
+        }
+        container.innerHTML = '';
+        history.forEach((tx) => {
+          const isCredit = tx.type === 'credit';
+          const row = document.createElement('div');
+          row.className = 'bb-row';
+          row.innerHTML = `
+            <div class="bb-avatar ${isCredit ? 'udhaar' : ''}" style="width:30px;height:30px;font-size:.75rem;">${isCredit ? '↑' : '↓'}</div>
+            <div class="bb-row-main">
+              <div class="bb-row-title" style="font-size:.82rem;">${esc(fmtDate(tx.date))} · ${isCredit ? 'Udhaar' : 'Jama'}</div>
+              <div class="bb-row-sub">${esc(tx.note || 'Khata entry')}</div>
+            </div>
+            <div class="bb-row-amount ${isCredit ? 'udhaar' : 'jama'}" style="font-size:.84rem;">${isCredit ? '+' : '−'}${money(tx.amount)}</div>
+            <button class="bb-icon-btn danger" type="button" data-del="${esc(tx.id)}" aria-label="Entry delete karein">🗑</button>
+          `;
+          row.querySelector('[data-del]').addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            deleteEntry(tx.id);
+          });
+          container.appendChild(row);
+        });
+      }
+
+      // --------------------------------------------------------- entry sheet
+      function setEntryType(type) {
+        entryType = type === 'payment' ? 'payment' : 'credit';
+        document.querySelectorAll('#bb-entry-type button').forEach((btn) => {
+          btn.classList.toggle('is-active', btn.dataset.type === entryType);
+        });
+      }
+
+      function openEntrySheet(options = {}) {
+        $('bb-entry-name').value = options.name || '';
+        $('bb-entry-amount').value = '';
+        $('bb-entry-note').value = '';
+        $('bb-entry-date').value = todayYmd();
+        $('bb-entry-error').textContent = '';
+        setEntryType(options.type || 'credit');
+        fillNameList();
+        openSheet('bb-entry-sheet');
+        if (!options.name) setTimeout(() => $('bb-entry-name').focus(), 200);
+      }
+
+      async function saveEntry() {
+        const customerName = $('bb-entry-name').value.trim();
+        const amount = Number($('bb-entry-amount').value);
+        const date = $('bb-entry-date').value || undefined;
+        const note = $('bb-entry-note').value.trim();
+        const errorEl = $('bb-entry-error');
+
+        if (customerName.length < 2) { errorEl.textContent = 'Grahak ka naam likhein.'; return; }
+        if (!Number.isFinite(amount) || amount <= 0) { errorEl.textContent = 'Rashi 0 se badi likhein.'; return; }
+
+        $('bb-entry-save').disabled = true;
+        try {
+          const res = await fetch('/api/entries', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ customerName, amount, type: entryType, date, note }),
+          });
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            errorEl.textContent = data.error || 'Entry save nahi hui.';
+            return;
+          }
+          state = data.state;
+          closeSheet('bb-entry-sheet');
+          await refresh();
+          flash(`${customerName}: ${entryType === 'credit' ? 'udhaar' : 'jama'} ${money(amount)} save hua`);
+        } catch (err) {
+          errorEl.textContent = 'Server se sampark nahi hua; entry save nahi hui.';
+        } finally {
+          $('bb-entry-save').disabled = false;
+        }
+      }
+
+      async function deleteEntry(entryId) {
+        if (!entryId) return;
+        if (!window.confirm('Yeh len-den delete karein? Wapas nahi aayega.')) return;
+        try {
+          const res = await fetch(`/api/entries/${encodeURIComponent(entryId)}`, { method: 'DELETE' });
+          const data = await res.json();
+          if (!res.ok || !data.success) { flash(data.error || 'Delete nahi hua'); return; }
+          state = data.state;
+          await refresh();
+          flash('Len-den delete ho gaya');
+        } catch {
+          flash('Server se sampark nahi hua');
+        }
+      }
+
+      async function deleteActiveCustomer() {
+        const customer = state.customers.find((c) => c.id === activeCustomerId);
+        if (!customer) return;
+        if (!window.confirm(`${customer.name} ka poora khata delete karein?`)) return;
+        try {
+          const res = await fetch(`/api/customers/${encodeURIComponent(customer.id)}`, { method: 'DELETE' });
+          const data = await res.json();
+          if (!res.ok || !data.success) { flash(data.error || 'Delete nahi hua'); return; }
+          state = data.state;
+          activeCustomerId = null;
+          closeSheet('bb-customer-sheet');
+          await refresh();
+          flash('Grahak delete ho gaya');
+        } catch {
+          flash('Server se sampark nahi hua');
+        }
+      }
+
+      async function saveCustomerPhone() {
+        const customer = state.customers.find((c) => c.id === activeCustomerId);
+        if (!customer) return;
+        const phone = $('bb-customer-phone').value.trim();
+        const res = await fetch(`/api/customers/${encodeURIComponent(customer.id)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) { $('bb-customer-error').textContent = data.error || 'Mobile save nahi hua.'; return; }
+        state = data.state;
+        await refresh();
+        flash('Mobile number save hua');
+      }
+
+      // --------------------------------------------------------------- report
+      async function renderReport() {
+        try {
+          const res = await fetch(`/api/reports?range=${encodeURIComponent(reportRange)}`, { cache: 'no-store' });
+          const data = await res.json();
+          if (!data.success) return;
+          $('bb-report-credit').textContent = money(data.totals.credit);
+          $('bb-report-payment').textContent = money(data.totals.payment);
+          $('bb-report-net').textContent = money(data.totals.net);
+          $('bb-report-count').textContent = `${data.totals.entries} / ${data.totals.customers}`;
+          $('bb-report-outstanding').textContent = money(data.totalOutstanding);
+          $('bb-report-total-customers').textContent = String(state.customers.length);
+
+          const top = data.topOutstanding || [];
+          const container = $('bb-report-top');
+          if (!top.length) {
+            container.innerHTML = emptyBlock('✅', 'Kisi ka udhaar baki nahi', 'Saare grahak chukta hain.');
+            return;
+          }
+          container.innerHTML = '';
+          top.forEach((rowData) => {
+            const row = document.createElement('div');
+            row.className = 'bb-row';
+            row.innerHTML = `
+              <div class="bb-avatar udhaar">${esc((rowData.name || '?').charAt(0).toUpperCase())}</div>
+              <div class="bb-row-main">
+                <div class="bb-row-title">${esc(rowData.name)}</div>
+                <div class="bb-row-sub">${rowData.lastTransactionDate ? `aakhri ${esc(fmtDate(rowData.lastTransactionDate))}` : '—'}</div>
+              </div>
+              <div class="bb-row-amount udhaar">${money(rowData.balance)}</div>
+            `;
+            row.addEventListener('click', () => openCustomer(rowData.id));
+            container.appendChild(row);
+          });
+        } catch (err) {
+          console.warn('[BB] report failed', err);
+        }
+      }
+
+      async function exportCsv() {
+        try {
+          const res = await fetch('/api/ledger');
+          const data = await res.json();
+          const entries = data.entries || [];
+          if (!entries.length) { flash('Koi entry nahi hai export ke liye'); return; }
+          const quote = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+          const lines = ['Date,Customer,Type,Amount,Note'];
+          entries.forEach((e) => {
+            lines.push([e.date, e.customer_name, e.type === 'credit' ? 'Udhaar' : 'Jama', e.amount, e.note || ''].map(quote).join(','));
+          });
+          const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const anchor = document.createElement('a');
+          anchor.href = url;
+          anchor.download = `bolti-bahi-khata-${todayYmd()}.csv`;
+          document.body.appendChild(anchor);
+          anchor.click();
+          anchor.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch {
+          flash('CSV nahi ban paya');
+        }
+      }
+
+      async function clearAllData() {
+        if (!window.confirm('Saara khata (grahak + len-den) delete karein? Yeh wapas nahi aayega.')) return;
+        try {
+          const res = await fetch('/api/data', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ confirm: 'DELETE' }),
+          });
+          const data = await res.json();
+          if (!res.ok || !data.success) { flash(data.error || 'Data delete nahi hua'); return; }
+          state = data.state;
+          activeCustomerId = null;
+          closeSheet('bb-customer-sheet');
+          if (typeof closeSettingsModal === 'function') closeSettingsModal();
+          await refresh();
+          flash('Saara data delete ho gaya');
+        } catch {
+          flash('Server se sampark nahi hua');
+        }
+      }
+
+      // --------------------------------------------------------------- sheets
+      function openSheet(id) { $(id).classList.add('is-open'); }
+      function closeSheet(id) { $(id).classList.remove('is-open'); }
+
+      async function refresh() {
+        try {
+          const [stateRes, activityRes] = await Promise.all([
+            fetch('/api/state', { cache: 'no-store' }).then((r) => r.json()),
+            fetch('/api/activity?limit=30', { cache: 'no-store' }).then((r) => r.json()),
+          ]);
+          if (stateRes.success) state = stateRes;
+          if (activityRes.success) activity = activityRes.entries;
+          renderHome();
+          renderCustomers();
+          if (currentTab === 'report') renderReport();
+          if (activeCustomerId) renderCustomerSheet();
+          const note = $('bb-data-note');
+          if (note) {
+            note.textContent = state.customers.length
+              ? `${state.customers.length} grahak, ${activity.length}+ entry. Delete karne par wapas nahi aayega.`
+              : 'Khata abhi khaali hai. Delete karne ke liye kuch nahi hai.';
+          }
+        } catch (err) {
+          console.warn('[BB] refresh failed', err);
+        }
+      }
+
+      function scheduleRefresh() {
+        clearTimeout(refreshTimer);
+        refreshTimer = setTimeout(refresh, 300);
+      }
+
+      // ---------------------------------------------------------------- wires
+      document.querySelectorAll('.bb-tab').forEach((btn) => {
+        btn.addEventListener('click', () => setTab(btn.dataset.tab));
+      });
+
+      $('bb-cta-manual').addEventListener('click', () => openEntrySheet({}));
+      $('bb-cta-voice').addEventListener('click', () => {
+        setTab('baat');
+        setTimeout(() => { if (typeof startRecording === 'function') startRecording(); }, 250);
+      });
+      $('bb-all-activity').addEventListener('click', () => setTab('grahak'));
+      $('bb-add-customer').addEventListener('click', () => openEntrySheet({}));
+      $('bb-grahak-search').addEventListener('input', (ev) => renderCustomers(ev.target.value));
+
+      document.querySelectorAll('#bb-entry-type button').forEach((btn) => {
+        btn.addEventListener('click', () => setEntryType(btn.dataset.type));
+      });
+      $('bb-entry-save').addEventListener('click', saveEntry);
+      $('bb-entry-amount').addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') { ev.preventDefault(); saveEntry(); }
+      });
+
+      $('bb-customer-add').addEventListener('click', () => {
+        const customer = state.customers.find((c) => c.id === activeCustomerId);
+        closeSheet('bb-customer-sheet');
+        openEntrySheet({ name: customer ? customer.name : '', type: 'credit' });
+      });
+      $('bb-customer-delete').addEventListener('click', deleteActiveCustomer);
+      $('bb-customer-phone-save').addEventListener('click', saveCustomerPhone);
+
+      $('bb-export-csv').addEventListener('click', exportCsv);
+      $('bb-clear-data').addEventListener('click', clearAllData);
+
+      document.querySelectorAll('#bb-range-chips .bb-chip').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          reportRange = btn.dataset.range;
+          document.querySelectorAll('#bb-range-chips .bb-chip').forEach((chip) => {
+            chip.classList.toggle('is-active', chip === btn);
+          });
+          renderReport();
+        });
+      });
+
+      document.querySelectorAll('[data-close-sheet]').forEach((btn) => {
+        btn.addEventListener('click', () => closeSheet(btn.dataset.closeSheet));
+      });
+      ['bb-entry-sheet', 'bb-customer-sheet'].forEach((id) => {
+        $(id).addEventListener('click', (ev) => {
+          if (ev.target === $(id)) closeSheet(id);
+        });
+      });
+
+      // Every server turn already sends a fresh snapshot; re-render the app from it.
+      if (typeof handleIncomingMessage === 'function') {
+        const originalHandler = handleIncomingMessage;
+        handleIncomingMessage = function wrapped(event) {
+          originalHandler(event);
+          scheduleRefresh();
+        };
+      }
+
+      setTab('home');
+      refresh();
+
+      return { refresh, setTab, openEntrySheet };
+    })();
   </script>
 </body>
 </html>

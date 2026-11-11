@@ -182,6 +182,116 @@ app.post('/api/text', (req, res) => {
   return res.json({ success: true, ...result, state: ledger.getUiState() });
 });
 
+/**
+ * Manual entry from the UI. Voice is the hero path, but a shopkeeper must be
+ * able to correct or record something by hand, and this is the only way to add
+ * an entry on a phone without a working microphone.
+ */
+app.post('/api/entries', (req, res) => {
+  if (!isSameOrigin(req)) {
+    return res.status(403).json({ success: false, error: 'Same-origin request required.' });
+  }
+
+  const customerName = String(req.body?.customerName || '').trim().replace(/\s+/g, ' ');
+  const amount = Number(req.body?.amount);
+  const type = req.body?.type === 'payment' ? 'payment' : (req.body?.type === 'credit' ? 'credit' : null);
+  const date = req.body?.date ? String(req.body.date) : undefined;
+  const note = String(req.body?.note || '').trim().slice(0, 200);
+
+  if (customerName.length < 2) {
+    return res.status(400).json({ success: false, error: 'Grahak ka naam likhein.' });
+  }
+  if (customerName.length > 60) {
+    return res.status(400).json({ success: false, error: 'Naam 60 akshar se chhota rakhein.' });
+  }
+  if (!/[\p{L}]/u.test(customerName)) {
+    return res.status(400).json({ success: false, error: 'Naam mein kam se kam ek akshar hona chahiye.' });
+  }
+  if (!type) {
+    return res.status(400).json({ success: false, error: 'Udhaar ya Jama chunein.' });
+  }
+  if (!Number.isFinite(amount) || amount <= 0 || amount > 100000000) {
+    return res.status(400).json({ success: false, error: 'Rashi 0 se badi honi chahiye.' });
+  }
+
+  try {
+    const entry = ledger.addEntry({ customerName, amount, type, date, note: note || null });
+    const balance = ledger.getCustomerBalance(entry.customerName).balance;
+    return res.json({ success: true, entry, balance, state: ledger.getUiState() });
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/entries/:id', (req, res) => {
+  if (!isSameOrigin(req)) {
+    return res.status(403).json({ success: false, error: 'Same-origin request required.' });
+  }
+  const removed = ledger.deleteEntryById(req.params.id);
+  if (!removed) return res.status(404).json({ success: false, error: 'Entry nahi mili.' });
+  return res.json({ success: true, removed, state: ledger.getUiState() });
+});
+
+app.delete('/api/customers/:id', (req, res) => {
+  if (!isSameOrigin(req)) {
+    return res.status(403).json({ success: false, error: 'Same-origin request required.' });
+  }
+  try {
+    const removed = ledger.deleteCustomerById(req.params.id);
+    if (!removed.customers) return res.status(404).json({ success: false, error: 'Grahak nahi mila.' });
+    return res.json({ success: true, removed, state: ledger.getUiState() });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.patch('/api/customers/:id', (req, res) => {
+  if (!isSameOrigin(req)) {
+    return res.status(403).json({ success: false, error: 'Same-origin request required.' });
+  }
+  const updated = ledger.updateCustomerPhone(req.params.id, req.body?.phone);
+  if (!updated) return res.status(404).json({ success: false, error: 'Grahak nahi mila.' });
+  return res.json({ success: true, state: ledger.getUiState() });
+});
+
+app.get('/api/reports', (req, res) => {
+  try {
+    const range = String(req.query.range || 'today');
+    const today = localYmd();
+    const startOfMonth = `${today.slice(0, 7)}-01`;
+    const weekAgo = localYmd(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000));
+    const from = range === 'all' ? '0000-01-01'
+      : range === 'month' ? startOfMonth
+        : range === 'week' ? weekAgo
+          : today;
+    res.json({ success: true, range, ...ledger.getReport(from, today) });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/activity', (req, res) => {
+  try {
+    res.json({ success: true, entries: ledger.getActivity(Number(req.query.limit) || 25) });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Data hygiene: the shopkeeper owns the data and must be able to clear it,
+// including any test entries typed by mistake.
+app.delete('/api/data', (req, res) => {
+  if (!isSameOrigin(req)) {
+    return res.status(403).json({ success: false, error: 'Same-origin request required.' });
+  }
+  if (req.body?.confirm !== 'DELETE') {
+    return res.status(400).json({ success: false, error: 'confirm: DELETE chahiye.' });
+  }
+  ledger.resetAll();
+  console.log('[Data] ledger cleared from the app');
+  return res.json({ success: true, state: ledger.getUiState() });
+});
+
 app.post('/api/reminders/opt-in', (req, res) => {
   const name = String(req.body?.name || '').trim();
   const optedIn = Boolean(req.body?.optIn);

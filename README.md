@@ -21,6 +21,19 @@ mid-sale, in a noisy shop, without touching the screen.
 - **Honest fallbacks** — without a Gnani key, recognition and speech move to the
   browser Web Speech API and `/api/health` says `stt:false`. Nothing is faked.
 
+## App sections
+
+The UI is a shop app, not a chat page: **Hisaab** (outstanding, today's credit and
+collection, recent entries), **Grahak** (customer list with search, balances and
+history), **Report** (day/week/month/all totals, top outstanding, CSV export) and
+**Baat** (the push-to-talk voice surface). A manual entry form writes the same
+validated rows for when the microphone is not an option.
+
+Nothing is seeded: a fresh install has an empty ledger and honest empty states,
+and every entry or customer can be deleted from the app (Settings → *Data saaf
+karein* wipes everything after an explicit confirmation), so a mistyped or
+test entry never becomes permanent junk.
+
 ## Architecture
 
 ```
@@ -84,6 +97,7 @@ Suites:
 |---|---|
 | `test/test-intent.js` | 100+ assertions on numbers, direction, dates, corrections, shared names, questions, guardrails |
 | `test/test-ledger.js` | SQLite ledger arithmetic, audit trail, name normalisation |
+| `test/test-api.js` | manual-entry, delete, report and clear-data routes; empty ledger on first run; rejected writes create no rows; cross-origin writes refused |
 | `test/test-pwa.js` | installable mobile shell: manifest, icon dimensions, service worker, offline behaviour, no fake data |
 | `test/test-gnani-contract.js` | offline wire-protocol contract for Prisma STT and Timbre TTS (headers, 1024-byte framing, `commit`, response shapes) |
 | `test/judge-evaluation.js` | 100-point behavioural judge with hard compliance gates; no source-grep scoring |

@@ -18,6 +18,28 @@ the ledger records the right customer, the right amount, the right direction
 | Spoken answers | `"Ramesh ka total?"`, `"Aaj kitna udhaar gaya?"`, `"kiski sabse zyada baaki hai"` are answered from the local ledger, with measured worst-case latency far below 2 seconds. |
 | Channel | Browser PTT / tap-to-toggle on a low-end phone, WebSocket streaming, optional Gnani Prisma v3.0 STT + Timbre v3.0 TTS. The server re-frames browser audio into the required 1024-byte / 32 ms PCM frames and sends `commit` on release, so the transcript does not wait for a silence timeout. Without a Gnani key the browser Web Speech API is used, and `/api/health` reports `stt:false` instead of pretending. |
 
+## App sections
+
+Bolti Bahi is laid out like a shop app, not a chat window with a ledger hidden
+behind a button. Four bottom tabs, all reading the same server snapshot:
+
+| Tab | What it does |
+|---|---|
+| **Hisaab** | Total outstanding, today's credit and collection, and the last few entries. Two CTAs: speak an entry, or type one. |
+| **Grahak** | Every customer with balance, entry count and last activity, plus search by name or mobile. Tap for history. |
+| **Report** | Today / week / month / all totals, net change, top outstanding, and a CSV export of the ledger. |
+| **Baat** | The voice surface: push-to-talk or tap-to-toggle, live transcript, spoken replies. |
+
+**Manual entry** (home → *Khud likhein*, or `+` on a customer) exists because a
+phone microphone can fail mid-sale. It writes the same rows through the same
+validated endpoint, with a name/amount/date/type form and autocomplete from
+existing customers.
+
+**Nothing is seeded.** A new install shows honest empty states; the customer
+list only ever contains rows the shopkeeper created. Every entry and customer can
+be deleted from the UI, and *Settings → Data saaf karein* wipes the ledger after
+an explicit confirmation, so a mistyped test entry never becomes permanent junk.
+
 ## Why local parsing
 
 A cloud LLM round trip cannot be trusted for money, and it fails when a demo
@@ -130,7 +152,8 @@ The APK is a client — the ledger and the key live on the Bolti Bahi server.
 3. Say `"nahi, 430"` → the last entry is corrected to ₹430 (audit trail keeps 340).
 4. Say `"Ramesh Kumar ka 50 udhaar"` then `"Ramesh ka 10 udhaar"` → it asks which Ramesh; answer `"pehla"`.
 5. Ask `"Aaj kitna udhaar gaya?"` or `"Ramesh ka total?"` → spoken answer from the ledger.
-6. Open the Khata drawer: the numbers come from the server snapshot, never from demo constants.
+6. Open **Hisaab → Sab dekhein** (or the **Grahak** tab): the numbers come from the server snapshot, never from demo constants.
+7. Add an entry by hand (**Khud likhein**), check the **Report** totals, then delete it again — nothing is seeded, so an empty ledger stays empty.
 
 ## API
 
@@ -143,6 +166,13 @@ The APK is a client — the ledger and the key live on the Bolti Bahi server.
 | `POST /api/text` | one text turn without a socket: `{ "text": "Ramesh ka 340 udhaar" }` |
 | `POST /api/reminders/opt-in` | `{ "name": "Ramesh", "optIn": true }` |
 | `GET /api/reminders/preview/:name` | policy-checked reminder wording |
+| `POST /api/entries` | manual entry from the app: `{customerName, amount, type, date?, note?}` |
+| `DELETE /api/entries/:id` | delete one entry |
+| `DELETE /api/customers/:id` | delete a customer and their history |
+| `PATCH /api/customers/:id` | save a customer's mobile number |
+| `GET /api/reports?range=today\|week\|month\|all` | totals, daily series and top outstanding |
+| `GET /api/activity?limit=30` | activity feed with entry ids |
+| `DELETE /api/data` | clear the whole ledger (`{confirm:"DELETE"}`) |
 | `POST /api/transcripts/purge` | delete all stored transcripts |
 | `POST /api/reset` | wipe demo ledger (needs `ENABLE_RESET=1`) |
 
