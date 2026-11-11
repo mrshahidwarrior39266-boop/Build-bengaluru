@@ -2600,7 +2600,7 @@
           isConnected = true;
           reconnectDelay = 1000;
           offlineBanner.classList.remove('active');
-          setStatus('connected', 'Juda Hai');
+          setStatus('connected', 'Juda Hua Hai');
           console.log('[BoltiBahi] WebSocket Connected to', wsUrl);
 
           // Request initial ledger data
@@ -2862,7 +2862,7 @@
         console.error('[BoltiBahi] Mic access failed:', err);
         isRecording = false;
         updateMicUI(false);
-        setStatus(isConnected ? 'connected' : 'disconnected', isConnected ? 'Juda Hai' : 'Offline');
+        setStatus(isConnected ? 'connected' : 'disconnected', isConnected ? 'Juda Hua Hai' : 'Offline');
         appendAIMessage('Microphone ki permission nahi mili. Kripya browser setting mein mic allow karein ya text likhein.');
       }
     }
@@ -2901,7 +2901,7 @@
       if (browserRecognition) {
         try { browserRecognition.stop(); } catch { /* already stopped */ }
         updateMicUI(false);
-        setStatus(isConnected ? 'connected' : 'disconnected', isConnected ? 'Juda Hai' : 'Offline');
+        setStatus(isConnected ? 'connected' : 'disconnected', isConnected ? 'Juda Hua Hai' : 'Offline');
         return;
       }
 
@@ -2922,7 +2922,7 @@
 
       // UI State -> Idle
       updateMicUI(false);
-      setStatus(isConnected ? 'connected' : 'disconnected', isConnected ? 'Juda Hai' : 'Offline');
+      setStatus(isConnected ? 'connected' : 'disconnected', isConnected ? 'Juda Hua Hai' : 'Offline');
       liveTranscriptText.textContent = 'Aawaz process ho rahi hai...';
 
       // Send audio completion payload
@@ -3454,7 +3454,7 @@
         browserRecognition.onend = () => {
           isRecording = false;
           updateMicUI(false);
-          setStatus(isConnected ? 'connected' : 'disconnected', isConnected ? 'Juda Hai' : 'Offline');
+          setStatus(isConnected ? 'connected' : 'disconnected', isConnected ? 'Juda Hua Hai' : 'Offline');
           liveTranscript.style.display = 'none';
         };
       }

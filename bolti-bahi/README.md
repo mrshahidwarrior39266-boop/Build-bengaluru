@@ -2,6 +2,8 @@
 
 > "Apni dukaan ka hisaab, bolkar rakhein."
 
+**Live:** https://bolti-bahi-production.up.railway.app · health: `/api/health`
+
 A push-to-talk khata (credit ledger) that works mid-sale, across a noisy counter,
 without touching the screen. The shopkeeper speaks Hinglish or an Indic language;
 the ledger records the right customer, the right amount, the right direction
