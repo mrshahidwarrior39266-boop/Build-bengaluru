@@ -7,6 +7,7 @@
  */
 
 import { parseIntent, extractCustomer } from './intent-parser.js';
+import { LlmBrain } from './llm-brain.js';
 import { normalizeSpokenText } from './hindi-numbers.js';
 import { safeSpeech } from './speech-guard.js';
 import { buildReminder } from './reminders.js';
@@ -34,12 +35,41 @@ function balanceLine(name, balance) {
 }
 
 export class KhataAgent {
-  constructor({ ledger, now = () => new Date() }) {
+  constructor({ ledger, now = () => new Date(), brain = null }) {
     if (!ledger) throw new Error('KhataAgent requires a ledger');
     this.ledger = ledger;
     this.now = now;
+    this.brain = brain;
     this.pending = null;
     this.lastEntryId = null;
+  }
+
+  /**
+   * Entry point used by the server. It is identical to handle() unless an LLM
+   * fallback is configured AND the deterministic parser could not read the
+   * sentence; even then the model's proposal is re-parsed and validated by the
+   * local parser before any row is written.
+   */
+  async handleAsync(rawText) {
+    const text = String(rawText || '').trim();
+    if (!text || !this.brain || !this.brain.enabled || this.pending) return this.handle(text);
+
+    const deterministic = parseIntent(text, { now: this.now() });
+    if (deterministic.intent !== 'unknown') return this.handle(text);
+
+    const hint = await this.brain.parse(text, {
+      customers: this.ledger.getCustomerSummary().slice(0, 40).map((row) => row.customer_name),
+    });
+    if (!hint) return this.handle(text);
+
+    // Re-enter the normal pipeline with a canonical phrase so name resolution,
+    // ambiguity questions, validation and audit notes all still apply.
+    const phrase = hint.type === 'credit'
+      ? `${hint.customerName} ka ${hint.amount} udhaar`
+      : `${hint.customerName} se ${hint.amount} jama`;
+    const result = this.handle(phrase);
+    if (!result.events.some((event) => event.type === 'entry')) return this.handle(text);
+    return { ...result, llm: { used: true, model: this.brain.model, confidence: hint.confidence } };
   }
 
   get disclosureText() {

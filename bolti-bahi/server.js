@@ -13,6 +13,7 @@ import { GnaniTTS } from './lib/gnani-tts.js';
 import { KhataAgent } from './lib/agent.js';
 import { PcmFramer } from './lib/pcm-framer.js';
 import { KeyStore } from './lib/key-store.js';
+import { LlmBrain } from './lib/llm-brain.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -41,7 +42,10 @@ const RETENTION_MINUTES = Number(process.env.TRANSCRIPT_RETENTION_MINUTES || 120
 const ALLOW_RESET = process.env.ENABLE_RESET === '1' || process.env.NODE_ENV === 'test';
 
 const ledger = new LedgerDB(DB_PATH);
-const apiAgent = new KhataAgent({ ledger });
+// Optional Grok fallback for phrasing the local parser cannot read. Off unless a
+// key is configured; the server never sends the key to the browser.
+const llm = new LlmBrain();
+const apiAgent = new KhataAgent({ ledger, brain: llm });
 
 app.use(express.static(join(__dirname, 'public'), {
   setHeaders(res, filePath) {
@@ -62,7 +66,8 @@ app.get('/api/health', (req, res) => {
     ok: true,
     stt: Boolean(GNANI_API_KEY),
     tts: Boolean(GNANI_API_KEY),
-    llm: Boolean(process.env.LLM_API_KEY),
+    llm: llm.enabled,
+    llmModel: llm.enabled ? llm.model : null,
     node: process.version,
     ledger: 'local-sqlite',
     transcripts: 'encrypted-at-rest',
@@ -175,10 +180,10 @@ app.delete('/api/settings/gnani-key', (req, res) => {
 });
 
 // Text turn without a WebSocket (curl, judge script, accessibility fallback).
-app.post('/api/text', (req, res) => {
+app.post('/api/text', async (req, res) => {
   const text = String(req.body?.text || '').trim();
   if (!text) return res.status(400).json({ success: false, error: 'text is required' });
-  const result = apiAgent.handle(text);
+  const result = await apiAgent.handleAsync(text);
   return res.json({ success: true, ...result, state: ledger.getUiState() });
 });
 
@@ -334,7 +339,7 @@ function sendState(ws) {
 
 wss.on('connection', (clientWs) => {
   const sessionId = randomUUID();
-  const agent = new KhataAgent({ ledger });
+  const agent = new KhataAgent({ ledger, brain: llm });
   let sttSocket = null;
   let sttCloseTimer = null;
 
@@ -361,11 +366,11 @@ wss.on('connection', (clientWs) => {
   sendState(clientWs);
   speak(clientWs, agent.disclosureText, sessionId);
 
-  function handleText(text) {
+  async function handleText(text) {
     if (!text || typeof text !== 'string') return;
     send(clientWs, 'transcript', { text, is_final: true });
 
-    const result = agent.handle(text);
+    const result = await agent.handleAsync(text);
 
     for (const event of result.events) {
       if (event.type === 'entry') {
@@ -429,7 +434,7 @@ wss.on('connection', (clientWs) => {
         case 'text':
         case 'text_input':
         case 'transcript':
-          handleText(message.text);
+          await handleText(message.text);
           break;
 
         case 'get_ledger':
@@ -473,7 +478,7 @@ wss.on('connection', (clientWs) => {
       });
       framer.start();
 
-      sttSocket.on('message', (raw) => {
+      sttSocket.on('message', async (raw) => {
         let payload;
         try {
           payload = JSON.parse(raw.toString());
@@ -506,7 +511,7 @@ wss.on('connection', (clientWs) => {
               detected_language: payload.detected_language_code,
               latency_ms: payload.latency,
             });
-            if (isFinal) handleText(text);
+            if (isFinal) await handleText(text);
             return;
           }
 

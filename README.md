@@ -20,6 +20,9 @@ mid-sale, in a noisy shop, without touching the screen.
   `"kiski sabse zyada baaki hai"` answered from the local ledger, sub-2s.
 - **Honest fallbacks** — without a Gnani key, recognition and speech move to the
   browser Web Speech API and `/api/health` says `stt:false`. Nothing is faked.
+- **Optional Grok fallback** — an LLM only re-reads sentences the deterministic
+  parser rejects, must return strict JSON, and its proposal is validated and
+  re-parsed before any row is written. Off unless a key is configured.
 
 ## App sections
 
@@ -99,6 +102,7 @@ Suites:
 | `test/test-ledger.js` | SQLite ledger arithmetic, audit trail, name normalisation |
 | `test/test-api.js` | manual-entry, delete, report and clear-data routes; empty ledger on first run; rejected writes create no rows; cross-origin writes refused |
 | `test/test-pwa.js` | installable mobile shell: manifest, icon dimensions, service worker, offline behaviour, no fake data |
+| `test/test-llm-brain.js` | Grok fallback cannot act without a key, rejects bad JSON/amounts/directions/low confidence, times out safely, and is skipped when the local parser already understands the sentence |
 | `test/test-gnani-contract.js` | offline wire-protocol contract for Prisma STT and Timbre TTS (headers, 1024-byte framing, `commit`, response shapes) |
 | `test/judge-evaluation.js` | 100-point behavioural judge with hard compliance gates; no source-grep scoring |
 | `test/test-ws-e2e.js` | real server + WebSocket: disclosure first, compound entry, correction, clarification, latency, encrypted transcripts, purge |

@@ -104,8 +104,16 @@ const CURRENCY_WORDS = new Set([
 ]);
 
 // Words that are also Hindi number words but usually verbs in shop speech
-// ("200 de do"). A single-token run made of these is not an amount.
+// ("200 de do", "likh do"). A single-token run made of these is not an amount.
 const VERB_LOOKALIKES = new Set(['do', 'de', 'dee', 'di']);
+
+// Verbs that turn a following "do"/"de" into an imperative, not a number.
+const VERB_BEFORE = new Set([
+  'kar', 'karo', 'kardo', 'karke', 'karwa', 'karwao', 'adjust',
+  'likh', 'likho', 'likhdo', 'likha', 'likhde',
+  'bhej', 'bhejo', 'bata', 'batao', 'bataiye', 'chhod', 'chhodo',
+  'le', 'lo', 'dena', 'dijiye', 'jama', 'badal', 'badlo',
+]);
 
 /** Convert native Indic digits to ASCII digits. */
 export function normalizeIndicDigits(text) {
@@ -256,8 +264,14 @@ export function scanAmounts(normalizedText) {
 
     const rawSpan = text.slice(tokens[i].start, tokens[lastIdx].end);
     const singleToken = numberTokens === 1 && !hasPrefix;
+    const nextToken = tokens[lastIdx + 1];
+    const followedByCurrency = Boolean(nextToken && isCurrency(nextToken.norm));
+    const previousToken = tokens[i - 1];
+    const afterVerb = Boolean(previousToken && VERB_BEFORE.has(previousToken.norm));
+    // "do rupay" is two rupees; "kar do" is a command and must never create
+    // a ₹2 entry, which is where the junk rows came from.
     const verbLookalike = singleToken && VERB_LOOKALIKES.has(tokens[i].norm) &&
-      (amounts.length > 0 || /\d/.test(text));
+      !followedByCurrency && (amounts.length > 0 || /\d/.test(text) || afterVerb);
 
     if (!verbLookalike && Number.isFinite(value) && value > 0) {
       amounts.push({ value, start: tokens[i].start, end: tokens[lastIdx].end, raw: rawSpan });

@@ -81,6 +81,8 @@ Open http://localhost:3000 on the phone or laptop.
 | Variable | Purpose |
 |---|---|
 | `GNANI_API_KEY` | Gnani Prisma v3.0 STT + Timbre v3.0 TTS. Optional; without it `/api/health` reports `stt:false` and the browser speech fallback is used. Add it as a secret, never in a tracked file, then run `npm run verify:gnani`. |
+| `LLM_API_KEY` | Optional Grok (xAI) fallback for sentences the local parser cannot read. Also read as `GROK_API_KEY` / `XAI_API_KEY`. Without it, unreadable speech simply stays unreadable — nothing is invented. |
+| `LLM_MODEL` | Model for that fallback (default `grok-4-fast`). |
 | `PORT` | HTTP/WebSocket port (default 3000). |
 | `KHATA_DB` | Ledger file path (default `./bolti-bahi.db`). |
 | `TRANSCRIPT_KEY` | 32-byte key (64 hex chars or base64) for transcript encryption. If empty, a local `.bolti-bahi-key` with mode 0600 is generated. Never commit it. |
@@ -102,6 +104,26 @@ environment it wins, so a deployed instance stays secret-managed.
 | `GET /api/settings` | `{configured, source, stt, tts}` — never the key |
 | `POST /api/settings/gnani-key` | save a key from the app |
 | `DELETE /api/settings/gnani-key` | remove the app-saved key |
+
+### Optional Grok fallback
+
+Every amount is still parsed by `lib/intent-parser.js`, offline. The model is a
+*second* reader for phrasing the local grammar rejects ("wo pichhle hafte wala
+adjust kar do"), never the first one:
+
+- it is only called when the deterministic parser returns `unknown`;
+- it must answer with strict JSON (`customerName`, `amount`, `type`, `confidence`);
+- the answer is rejected unless the name contains letters, the amount is a
+  positive number ≤ 1 crore, the direction is `credit`/`payment`, and confidence
+  is at least 0.55;
+- the accepted hint is re-parsed by the deterministic parser and written through
+  the normal ledger path, so ambiguity questions and validation still apply;
+- a slow or failing model (2.5 s budget) is ignored and the honest "samajh nahi
+  aaya" answer is used instead.
+
+`test/test-llm-brain.js` proves all of that against a local stub, including that
+no request is made without a key and that the model is never consulted for a
+sentence the local parser already understands.
 
 ## Mobile app (installable PWA)
 
@@ -210,6 +232,7 @@ pnpm test             # intent, ledger, PWA shell, Gnani contract, judge, WebSoc
 pnpm test:judge       # 100-point behavioural judge with hard compliance gates
 pnpm test:pwa         # manifest, icons, service worker, Android shell and APK
 pnpm test:gnani       # offline wire-protocol contract for the STT/TTS adapters
+pnpm test:llm         # Grok fallback: opt-in, validated, never writes on its own
 pnpm verify:gnani     # live TTS → PCM → Prisma → ledger check (needs GNANI_API_KEY)
 pnpm bench:stt        # live recognition accuracy over synthesized utterances (needs key)
 ```

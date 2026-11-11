@@ -91,6 +91,30 @@ try {
   eq(empty.body.summary.totalOutstanding, 0, 'Fresh ledger outstanding is zero');
   eq((await json('/api/activity')).body.entries.length, 0, 'Fresh ledger has no activity');
 
+  // 1b. Regression: "likh do" is a command, not a ₹2 entry. This is what used
+  // to fill the ledger with junk rows nobody could delete.
+  const command = await json('/api/text', {
+    method: 'POST',
+    body: JSON.stringify({ text: 'wo baat likh do' }),
+  });
+  eq((command.body.events || []).filter((e) => e.type === 'entry').length, 0, '“likh do” creates no entry');
+  eq((await json('/api/state')).body.customers.length, 0, '“likh do” creates no customer');
+
+  const adjust = await json('/api/text', {
+    method: 'POST',
+    body: JSON.stringify({ text: 'pichhle wale ka hisaab adjust kar do' }),
+  });
+  eq((adjust.body.events || []).filter((e) => e.type === 'entry').length, 0, '“adjust kar do” creates no entry');
+
+  // …while a real two-word number still parses.
+  const twoHundred = await json('/api/text', {
+    method: 'POST',
+    body: JSON.stringify({ text: 'do sau udhaar Meena' }),
+  });
+  const twoHundredEntry = (twoHundred.body.events || []).find((e) => e.type === 'entry');
+  eq(twoHundredEntry?.entry?.amount, 200, '“do sau” still parses as ₹200');
+  await json('/api/data', { method: 'DELETE', body: JSON.stringify({ confirm: 'DELETE' }) });
+
   // 2. Manual credit, then a payment against it.
   const credit = await json('/api/entries', {
     method: 'POST',

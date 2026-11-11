@@ -155,7 +155,11 @@ function detectQuery(text, customer) {
   if (/(?:aakhri|last|pichhli|recent)\s*(?:entry|transaction|len-?den)/.test(text)) {
     return { kind: 'last_entry', customer: customer || null };
   }
-  if (customer) return { kind: 'customer_balance', customer };
+  // A bare name ("ok", "hmm") is not a balance question; require a question
+  // word or an explicit possessive so filler never becomes a customer lookup.
+  if (customer && (QUERY_RE.test(text) || /\b(?:ka|ki|ke)\b/.test(text))) {
+    return { kind: 'customer_balance', customer };
+  }
   if (/(?:hisaab|hisab|summary|total)/.test(text)) return { kind: 'today_summary', customer: null };
   if (QUERY_RE.test(text)) return { kind: 'customer_balance', customer: null };
   return null;
