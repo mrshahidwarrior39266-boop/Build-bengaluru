@@ -11,6 +11,7 @@ import { LlmBrain } from './llm-brain.js';
 import { normalizeSpokenText } from './hindi-numbers.js';
 import { safeSpeech } from './speech-guard.js';
 import { buildReminder } from './reminders.js';
+import { localYmd } from './shop-date.js';
 
 export const AI_DISCLOSURE =
   'Namaste! Main Bolti Bahi ka AI assistant hoon. Aap bolkar udhaar aur jama likhwa sakte hain. Bataiye, kya likhna hai?';
@@ -292,8 +293,8 @@ export class KhataAgent {
 
   _handleQuery(parsed, started) {
     const { query } = parsed;
-    const today = this.now();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    // "Aaj" means the shop's day, the same calendar the entries are stamped in.
+    const todayStr = localYmd(this.now());
 
     if (query.kind === 'customer_balance') {
       if (!parsed.customer) {
