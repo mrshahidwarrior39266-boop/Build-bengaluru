@@ -125,6 +125,12 @@ adjust kar do"), never the first one:
 no request is made without a key and that the model is never consulted for a
 sentence the local parser already understands.
 
+It speaks the OpenAI chat-completions shape, so any compatible provider works:
+set `LLM_PROVIDER` to `xai` (default), `groq`, `openrouter` or `gemini` and put
+that provider’s own key in `LLM_API_KEY`. `LLM_MODEL` / `LLM_BASE_URL` override
+the preset. Free tiers exist at several of them, but the key must be yours —
+the app never ships or borrows credentials.
+
 ## Mobile app (installable PWA)
 
 Bolti Bahi is the app — there is no store download and no WebView wrapper:

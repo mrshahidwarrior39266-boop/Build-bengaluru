@@ -8,9 +8,21 @@
  * when no key is configured.
  */
 
-const DEFAULT_BASE_URL = 'https://api.x.ai/v1';
-const DEFAULT_MODEL = 'grok-4-fast';
 const DEFAULT_TIMEOUT_MS = 2500;
+
+/**
+ * OpenAI-compatible endpoints. All four take the same request shape, so a key
+ * from any of them works without touching code; LLM_BASE_URL / LLM_MODEL still
+ * override the preset when a provider renames a model.
+ */
+export const PROVIDERS = {
+  xai: { baseUrl: 'https://api.x.ai/v1', model: 'grok-4-fast' },
+  groq: { baseUrl: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile' },
+  openrouter: { baseUrl: 'https://openrouter.ai/api/v1', model: 'meta-llama/llama-3.3-70b-instruct:free' },
+  gemini: { baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.0-flash' },
+};
+
+const DEFAULT_PROVIDER = 'xai';
 
 const SYSTEM_PROMPT = [
   'You convert ONE spoken sentence from an Indian kirana shop into JSON.',
@@ -28,15 +40,20 @@ const SYSTEM_PROMPT = [
 
 export class LlmBrain {
   constructor({
-    apiKey = process.env.LLM_API_KEY || process.env.GROK_API_KEY || process.env.XAI_API_KEY,
-    model = process.env.LLM_MODEL || DEFAULT_MODEL,
-    baseUrl = process.env.LLM_BASE_URL || DEFAULT_BASE_URL,
+    apiKey = process.env.LLM_API_KEY || process.env.GROK_API_KEY || process.env.XAI_API_KEY
+      || process.env.GROQ_API_KEY || process.env.OPENROUTER_API_KEY || process.env.GEMINI_API_KEY,
+    provider = process.env.LLM_PROVIDER || DEFAULT_PROVIDER,
+    model = process.env.LLM_MODEL,
+    baseUrl = process.env.LLM_BASE_URL,
     timeoutMs = Number(process.env.LLM_TIMEOUT_MS || DEFAULT_TIMEOUT_MS),
     fetchImpl = globalThis.fetch,
   } = {}) {
+    const requested = String(provider || DEFAULT_PROVIDER).toLowerCase();
+    this.provider = PROVIDERS[requested] ? requested : DEFAULT_PROVIDER;
+    const preset = PROVIDERS[this.provider];
     this.apiKey = typeof apiKey === 'string' ? apiKey.trim() : '';
-    this.model = String(model || DEFAULT_MODEL);
-    this.baseUrl = String(baseUrl || DEFAULT_BASE_URL).replace(/\/+$/, '');
+    this.model = String(model || preset.model);
+    this.baseUrl = String(baseUrl || preset.baseUrl).replace(/\/+$/, '');
     this.timeoutMs = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : DEFAULT_TIMEOUT_MS;
     this.fetchImpl = typeof fetchImpl === 'function' ? fetchImpl : null;
   }

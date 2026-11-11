@@ -80,6 +80,17 @@ try {
   eq(off.enabled, false, 'Brain is disabled without a key');
   eq(await off.parse('wo baat likh do'), null, 'Disabled brain returns null');
 
+  // 1b. Provider presets: a free-tier key just works, and overrides still win.
+  eq(new LlmBrain({ apiKey: 'k', provider: 'groq' }).model, 'llama-3.3-70b-versatile', 'Groq preset model');
+  eq(new LlmBrain({ apiKey: 'k', provider: 'groq' }).baseUrl, 'https://api.groq.com/openai/v1', 'Groq preset endpoint');
+  eq(new LlmBrain({ apiKey: 'k', provider: 'openrouter' }).baseUrl, 'https://openrouter.ai/api/v1', 'OpenRouter preset endpoint');
+  eq(new LlmBrain({ apiKey: 'k', provider: 'gemini' }).baseUrl, 'https://generativelanguage.googleapis.com/v1beta/openai', 'Gemini preset endpoint');
+  eq(new LlmBrain({ apiKey: 'k' }).provider, 'xai', 'Default provider is xAI');
+  eq(new LlmBrain({ apiKey: 'k', provider: 'nope' }).provider, 'xai', 'Unknown provider falls back to the default');
+  const overridden = new LlmBrain({ apiKey: 'k', provider: 'groq', baseUrl: 'http://127.0.0.1:9/v1', model: 'custom-model' });
+  eq(overridden.baseUrl, 'http://127.0.0.1:9/v1', 'Explicit base URL overrides the preset');
+  eq(overridden.model, 'custom-model', 'Explicit model overrides the preset');
+
   // 2. A real shaped answer is accepted.
   const brain = new LlmBrain({ apiKey: 'test-key-not-real', baseUrl, fetchImpl: fetch });
   mode = 'valid';
