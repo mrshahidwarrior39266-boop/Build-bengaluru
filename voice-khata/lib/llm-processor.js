@@ -6,6 +6,10 @@ export class LLMProcessor {
   }
 
   async process({ transcript, customerSummary, recentEntries, conversationHistory, pendingCorrection }) {
+    if (!this.apiKey) {
+      return this._localFallbackProcess({ transcript, customerSummary, recentEntries, pendingCorrection });
+    }
+
     const systemPrompt = this._buildSystemPrompt(customerSummary, recentEntries, pendingCorrection);
     
     const messages = [
@@ -15,13 +19,89 @@ export class LLMProcessor {
     ];
 
     let response;
-    if (this.provider === 'gemini') {
-      response = await this._callGemini(messages);
-    } else {
-      response = await this._callOpenAI(messages);
+    try {
+      if (this.provider === 'gemini') {
+        response = await this._callGemini(messages);
+      } else {
+        response = await this._callOpenAI(messages);
+      }
+      return this._parseResponse(response);
+    } catch (err) {
+      console.warn('[LLM] Cloud LLM error, falling back to local extractor:', err.message);
+      return this._localFallbackProcess({ transcript, customerSummary, recentEntries, pendingCorrection });
+    }
+  }
+
+  _localFallbackProcess({ transcript, customerSummary, recentEntries, pendingCorrection }) {
+    const text = transcript.trim();
+    const today = new Date().toISOString().split('T')[0];
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
+    // Correction check: "nahi 430", "nahi, 430", "arre nahi 430"
+    const corrMatch = text.match(/(?:nahi|galat|arre\s*nahi)[,\s]+(\d+)/i) ||
+                      text.match(/^(\d+)\s*(?:karo|likho)/i);
+    if (corrMatch) {
+      const newAmt = parseInt(corrMatch[1], 10);
+      const lastCust = recentEntries && recentEntries[0] ? recentEntries[0].customer_name : null;
+      return {
+        action: 'correct_entry',
+        customerName: lastCust,
+        newAmount: newAmt,
+        spokenResponse: `Theek hai, ${newAmt} rupay kar diya`
+      };
     }
 
-    return this._parseResponse(response);
+    // Query check: "aaj kitna udhaar gaya", "ramesh ka total"
+    if (/aaj.*udhaar|kitna.*udhaar/i.test(text)) {
+      return {
+        action: 'query',
+        queryResult: { type: 'today_summary' },
+        spokenResponse: 'Aaj ka kul udhaar'
+      };
+    }
+
+    const totalMatch = text.match(/([a-zA-Z\u0900-\u097F]+)\s*(?:ka|ki|ke)?\s*(?:total|baaki|hisaab)/i);
+    if (totalMatch && !['aaj', 'kal', 'parso', 'kul'].includes(totalMatch[1].toLowerCase())) {
+      const cust = totalMatch[1].trim();
+      return {
+        action: 'query',
+        customerName: cust,
+        queryResult: { type: 'customer_balance' },
+        spokenResponse: `${cust} ka total baaki hisaab`
+      };
+    }
+
+    // Determine credit vs payment
+    const isPayment = /(?:diya|diye|payment|jama|wapas|bhugtan)/i.test(text);
+    const isCredit = /(?:udhaar|udhar|credit|khata|likh|baaki)/i.test(text) || !isPayment;
+
+    // Extract amount
+    const amtMatch = text.match(/(\d+(?:\.\d+)?)/);
+    const amount = amtMatch ? parseFloat(amtMatch[1]) : 0;
+
+    // Extract customer name
+    let customerName = 'Grahak';
+    const nameMatch = text.match(/^([a-zA-Z\u0900-\u097F]+)/);
+    if (nameMatch && !['aaj', 'kal', 'parso', 'nahi', 'arre'].includes(nameMatch[1].toLowerCase())) {
+      customerName = nameMatch[1];
+    }
+
+    // Date
+    let date = today;
+    if (/kal/i.test(text)) date = yesterday;
+
+    const action = isPayment ? 'add_payment' : 'add_credit';
+    const typeLabel = isPayment ? 'payment' : 'udhaar';
+    const spokenResponse = `${customerName} ka ${amount} rupay ${typeLabel} likh diya`;
+
+    return {
+      action,
+      customerName,
+      amount,
+      date,
+      note: text,
+      spokenResponse
+    };
   }
 
   _buildSystemPrompt(customerSummary, recentEntries, pendingCorrection) {

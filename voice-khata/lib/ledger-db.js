@@ -5,6 +5,7 @@ export class LedgerDB {
   constructor(dbPath) {
     this.db = new DatabaseSync(dbPath);
     this.db.exec('PRAGMA foreign_keys = ON;');
+    this.db.exec('PRAGMA journal_mode = WAL;');
     this._initTables();
   }
 
@@ -48,7 +49,7 @@ export class LedgerDB {
       .replace(/[^a-z0-9\s\u0900-\u097F]/g, ''); // Keep Devanagari + alphanumeric
   }
 
-  // Find or create customer by name (fuzzy matching)
+  // Find or create customer by name
   findOrCreateCustomer(name) {
     const normalized = this._normalizeName(name);
     
@@ -56,13 +57,6 @@ export class LedgerDB {
     let customer = this.db.prepare(
       'SELECT * FROM customers WHERE normalized_name = ?'
     ).get(normalized);
-
-    if (customer) return customer;
-
-    // Try partial match (for name variations)
-    customer = this.db.prepare(
-      'SELECT * FROM customers WHERE normalized_name LIKE ? OR ? LIKE normalized_name || \'%\''
-    ).get(`%${normalized}%`, normalized);
 
     if (customer) return customer;
 
@@ -81,6 +75,20 @@ export class LedgerDB {
     return this.db.prepare(
       'SELECT * FROM customers WHERE normalized_name LIKE ?'
     ).all(`%${normalized}%`);
+  }
+
+  // Get disambiguation options if multiple distinct customers match a name
+  getDisambiguationOptions(name) {
+    if (!name) return [];
+    const normalized = this._normalizeName(name);
+    const matches = this.db.prepare(
+      'SELECT DISTINCT name FROM customers WHERE normalized_name LIKE ?'
+    ).all(`%${normalized}%`);
+
+    if (matches.length > 1) {
+      return matches.map(c => c.name);
+    }
+    return [];
   }
 
   // Add a ledger entry
@@ -109,15 +117,45 @@ export class LedgerDB {
     };
   }
 
-  // Correct the last entry for a customer
+  // Correct the last entry for a customer (or absolute last entry if customer unspecified)
   correctLastEntry(customerName, newAmount) {
-    const customer = this.findOrCreateCustomer(customerName);
-    const lastEntry = this.db.prepare(`
-      SELECT rowid, * FROM ledger_entries 
-      WHERE customer_id = ? 
-      ORDER BY rowid DESC 
-      LIMIT 1
-    `).get(customer.id);
+    let lastEntry;
+    let customer;
+
+    if (!customerName || customerName.toLowerCase().includes('last')) {
+      // Find the absolute latest entry across the entire ledger
+      lastEntry = this.db.prepare(`
+        SELECT e.rowid, e.*, c.name as customer_name
+        FROM ledger_entries e
+        JOIN customers c ON e.customer_id = c.id
+        ORDER BY e.rowid DESC
+        LIMIT 1
+      `).get();
+
+      if (!lastEntry) return null;
+      customer = { id: lastEntry.customer_id, name: lastEntry.customer_name };
+    } else {
+      customer = this.findOrCreateCustomer(customerName);
+      lastEntry = this.db.prepare(`
+        SELECT rowid, * FROM ledger_entries 
+        WHERE customer_id = ? 
+        ORDER BY rowid DESC 
+        LIMIT 1
+      `).get(customer.id);
+
+      if (!lastEntry) {
+        lastEntry = this.db.prepare(`
+          SELECT e.rowid, e.*, c.name as customer_name
+          FROM ledger_entries e
+          JOIN customers c ON e.customer_id = c.id
+          ORDER BY e.rowid DESC
+          LIMIT 1
+        `).get();
+        if (lastEntry) {
+          customer = { id: lastEntry.customer_id, name: lastEntry.customer_name };
+        }
+      }
+    }
 
     if (!lastEntry) return null;
 

@@ -7,9 +7,14 @@
     "start": "node server.js",
     "dev": "node server.js",
     "test": "node test/test-ledger.js",
-    "test:integration": "node test/test-integration.js"
+    "test:integration": "node test/test-integration.js",
+    "cap:sync": "cap sync android",
+    "build:apk": "powershell -ExecutionPolicy Bypass -File ./build-apk.ps1"
   },
   "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/cli": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "ws": "^8.18.0"

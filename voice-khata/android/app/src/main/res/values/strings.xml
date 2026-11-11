@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Voice Khata</string>
+    <string name="title_activity_main">Voice Khata</string>
+    <string name="package_name">com.voicekhata.app</string>
+    <string name="custom_url_scheme">com.voicekhata.app</string>
+</resources>

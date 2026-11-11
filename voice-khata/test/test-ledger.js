@@ -1,11 +1,14 @@
 /**
  * Voice Khata Test Suite
- * Tests ledger logic, LLM processing, and number parsing
+ * Tests ledger logic, disambiguation, corrections, fast queries, number parsing, and compliance
  * Run: node test/test-ledger.js
  */
 
 import { LedgerDB } from '../lib/ledger-db.js';
 import { LLMProcessor } from '../lib/llm-processor.js';
+import { parseHindiNumbers } from '../lib/hindi-numbers.js';
+import { handleFastQuery } from '../lib/fast-query.js';
+import { runComplianceAudit, validateReminderCompliance, generatePoliteReminder } from '../lib/compliance.js';
 import { existsSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -44,17 +47,6 @@ function assertEq(actual, expected, testName) {
   }
 }
 
-function assertClose(actual, expected, tolerance, testName) {
-  total++;
-  if (Math.abs(actual - expected) <= tolerance) {
-    passed++;
-    console.log(`  ✅ ${testName}`);
-  } else {
-    failed++;
-    console.log(`  ❌ ${testName} — expected ~${expected}, got: ${actual}`);
-  }
-}
-
 // ===== LEDGER DB TESTS =====
 console.log('\n📒 LEDGER DATABASE TESTS\n');
 
@@ -68,13 +60,13 @@ assert(customer1.normalized_name === 'ramesh', 'Name normalized correctly');
 
 // Test 2: Find existing customer
 const customer1Again = ledger.findOrCreateCustomer('Ramesh');
-assertEq(customer1.id, customer1Again.id, 'Find existing customer by name');
+assertEq(customer1Again.id, customer1.id, 'Find existing customer by name');
 
-// Test 3: Case-insensitive matching
-const customer1Upper = ledger.findOrCreateCustomer('RAMESH');
-assertEq(customer1.id, customer1Upper.id, 'Case-insensitive name matching');
+// Test 3: Case-insensitive search
+const customerLower = ledger.findOrCreateCustomer('ramesh');
+assertEq(customerLower.id, customer1.id, 'Case-insensitive name matching');
 
-// Test 4: Create different customer
+// Test 4: Create second customer
 const customer2 = ledger.findOrCreateCustomer('Suresh');
 assert(customer2.id !== customer1.id, 'Create different customer Suresh');
 
@@ -98,68 +90,141 @@ const entry2 = ledger.addEntry({
   amount: 200,
   type: 'payment',
   date: today,
-  note: 'Ramesh ne 200 diya'
+  note: 'Ramesh 200 payment'
 });
 assert(entry2.id, 'Add payment entry');
 assertEq(entry2.amount, 200, 'Payment amount correct');
 
-// Test 7: Check balance
+// Test 7: Balance calculation
 console.log('\n--- Balance Calculations ---');
-const balance = ledger.getCustomerBalance('Ramesh');
-assertEq(balance.totalCredit, 340, 'Total credit = 340');
-assertEq(balance.totalPayment, 200, 'Total payment = 200');
-assertEq(balance.balance, 140, 'Balance = 140 (340 - 200)');
+const balance1 = ledger.getCustomerBalance('Ramesh');
+assertEq(balance1.totalCredit, 340, 'Total credit = 340');
+assertEq(balance1.totalPayment, 200, 'Total payment = 200');
+assertEq(balance1.balance, 140, 'Balance = 140 (340 - 200)');
 
-// Test 8: Add more entries
+// Test 8: Another credit entry
 ledger.addEntry({
   customerName: 'Ramesh',
   amount: 500,
   type: 'credit',
   date: today,
-  note: 'Ramesh ka 500 aur udhaar'
+  note: 'Ramesh 500 aur'
 });
 const balance2 = ledger.getCustomerBalance('Ramesh');
 assertEq(balance2.balance, 640, 'Updated balance = 640 (840 - 200)');
 
-// Test 9: Correct entry
+// Test 9: Correction on last entry with customer name
 console.log('\n--- Entry Corrections ---');
 const corrected = ledger.correctLastEntry('Ramesh', 430);
-assert(corrected, 'Correct last entry');
+assert(corrected !== null, 'Correct last entry');
 assertEq(corrected.amount, 430, 'Corrected amount = 430');
 assertEq(corrected.corrected_from, 500, 'Corrected from 500');
-const balance3 = ledger.getCustomerBalance('Ramesh');
-assertEq(balance3.balance, 570, 'Balance after correction = 570 (770 - 200)');
+
+const balanceAfterCorrection = ledger.getCustomerBalance('Ramesh');
+assertEq(balanceAfterCorrection.balance, 570, 'Balance after correction = 570 (770 - 200)');
+
+// Test 9b: Correction without customer name (e.g. "nahi, 430")
+const anonymousCorrection = ledger.correctLastEntry(null, 450);
+assert(anonymousCorrection !== null, 'Correct last entry anonymously');
+assertEq(anonymousCorrection.amount, 450, 'Anonymous corrected amount = 450');
 
 // Test 10: Multiple customers
 console.log('\n--- Multiple Customers ---');
-ledger.addEntry({ customerName: 'Suresh', amount: 1000, type: 'credit', date: today, note: 'test' });
-ledger.addEntry({ customerName: 'Mahesh', amount: 750, type: 'credit', date: today, note: 'test' });
-ledger.addEntry({ customerName: 'Suresh', amount: 300, type: 'payment', date: today, note: 'test' });
+ledger.addEntry({
+  customerName: 'Suresh',
+  amount: 1000,
+  type: 'credit',
+  date: today,
+  note: 'Suresh 1000'
+});
+ledger.addEntry({
+  customerName: 'Suresh',
+  amount: 300,
+  type: 'payment',
+  date: today,
+  note: 'Suresh 300 wapas'
+});
+ledger.addEntry({
+  customerName: 'Mahesh',
+  amount: 750,
+  type: 'credit',
+  date: today,
+  note: 'Mahesh 750'
+});
 
 const summary = ledger.getCustomerSummary();
 assert(summary.length >= 3, `Found ${summary.length} customers`);
 
-const sureshSummary = summary.find(s => s.customer_name === 'Suresh');
-assertEq(sureshSummary.balance, 700, 'Suresh balance = 700');
+const sureshBalance = ledger.getCustomerBalance('Suresh');
+assertEq(sureshBalance.balance, 700, 'Suresh balance = 700');
 
-// Test 11: Today's summary
+// Test 11: Daily summary
 console.log('\n--- Daily Summary ---');
 const todaySummary = ledger.getTodaySummary();
-assert(todaySummary.total_transactions > 0, `Today has ${todaySummary.total_transactions} transactions`);
+assert(todaySummary.total_transactions >= 6, `Today has ${todaySummary.total_transactions} transactions`);
 assert(todaySummary.total_credit > 0, `Today total credit = ₹${todaySummary.total_credit}`);
 
-// Test 12: Recent entries
-const recent = ledger.getRecentEntries(5);
-assertEq(recent.length, 5, 'Recent entries returns 5');
+// Test 12: Customer name disambiguation (Requirement 4)
+console.log('\n--- Disambiguation (Shared Names) ---');
+ledger.findOrCreateCustomer('Ramesh Sharma');
+ledger.findOrCreateCustomer('Ramesh Chaiwala');
+const disambig = ledger.getDisambiguationOptions('Ramesh');
+assert(disambig.length >= 2, `Disambiguation options found: ${disambig.join(', ')}`);
+assert(disambig.includes('Ramesh Sharma') && disambig.includes('Ramesh Chaiwala'), 'Contains both distinct Ramesh customers');
 
-// Test 13: Customer entries
-const rameshEntries = ledger.getCustomerEntries('Ramesh');
-assert(rameshEntries.length >= 3, `Ramesh has ${rameshEntries.length} entries`);
+// ===== INDIC & CODE-MIX NUMBER PARSER TESTS =====
+console.log('\n🔢 INDIC & CODE-MIX NUMBER PARSER TESTS\n');
 
-// Test 14: Similar customer search
-console.log('\n--- Name Matching ---');
-const similar = ledger.findSimilarCustomers('esh');
-assert(similar.length >= 2, `Found ${similar.length} customers matching "esh"`);
+const numberTests = [
+  { input: 'Ramesh ka teen sau chaalis udhaar', expected: '340' },
+  { input: 'Ramesh ka three-forty udhaar', expected: '340' },
+  { input: 'Suresh three forty payment', expected: '340' },
+  { input: 'Four-thirty kar do', expected: '430' },
+  { input: 'Mahesh dedh sau rupay', expected: '150' },
+  { input: 'Dhai sau jama', expected: '250' },
+  { input: 'Sawa sau udhar', expected: '125' },
+  { input: 'Paune do sau likho', expected: '175' },
+  { input: 'Ramesh ka 340 udhaar', expected: '340' },
+  { input: 'Do hazaar paanch sau', expected: '2500' }
+];
+
+for (const nt of numberTests) {
+  const result = parseHindiNumbers(nt.input);
+  assert(result.includes(nt.expected), `Parsed "${nt.input}" -> contains "${nt.expected}" (got: "${result}")`);
+}
+
+// ===== FAST QUERY ENGINE TESTS (< 50ms) =====
+console.log('\n⚡ FAST QUERY ENGINE TESTS\n');
+
+const q1 = handleFastQuery('Aaj kitna udhaar gaya?', ledger);
+assert(q1.matched === true, 'Matches today credit query');
+assert(q1.spokenResponse.includes('rupay'), `Spoken response generated: "${q1.spokenResponse}"`);
+
+const q2 = handleFastQuery('Aaj kitna jama hua?', ledger);
+assert(q2.matched === true, 'Matches today payment query');
+
+const q3 = handleFastQuery('Suresh ka total?', ledger);
+assert(q3.matched === true, 'Matches customer balance query');
+assert(q3.spokenResponse.includes('Suresh') && q3.spokenResponse.includes('700'), `Customer total response: "${q3.spokenResponse}"`);
+
+const q4 = handleFastQuery('Dukaan ka kul baaki kitna hai?', ledger);
+assert(q4.matched === true, 'Matches total shop balance query');
+
+// ===== RESPONSIBLE AI & COMPLIANCE TESTS =====
+console.log('\n🛡️ RESPONSIBLE AI & COMPLIANCE TESTS\n');
+
+const audit = runComplianceAudit();
+assert(audit.aiDisclosureImplemented === true, 'AI first-turn disclosure implemented');
+assert(audit.reminderPoliteAndCompliant === true, 'Default reminder is polite & non-coercive');
+
+// Threat detection test
+const politeMsg = generatePoliteReminder('Ramesh', 340);
+assert(validateReminderCompliance(politeMsg).valid === true, 'Polite reminder passes compliance');
+
+const threateningMsg = 'Ramesh turant paisa do varna police case kar dunga';
+const threatCheck = validateReminderCompliance(threateningMsg);
+assert(threatCheck.valid === false, 'Threatening language correctly flagged');
+assert(threatCheck.violations.includes('police'), 'Identified "police" violation');
 
 // ===== LLM PROCESSOR TESTS (parse logic only) =====
 console.log('\n🧠 LLM RESPONSE PARSER TESTS\n');

@@ -1721,9 +1721,14 @@
     // 2. WEBSOCKET CONNECTION LIFECYCLE
     // ==========================================================================
     function getWebSocketUrl() {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('ws')) return params.get('ws');
+      const savedWs = window.localStorage.getItem('VOICE_KHATA_WS_URL');
+      if (savedWs) return savedWs;
+
       const loc = window.location;
-      if (loc.protocol === 'file:' || !loc.host) {
-        // Fallback for standalone file open
+      if (loc.protocol === 'file:' || !loc.host || loc.host === '') {
+        // Fallback for standalone file open or Android WebView
         return 'ws://localhost:3000/ws';
       }
       const wsProto = (loc.protocol === 'https:') ? 'wss:' : 'ws:';
@@ -1816,6 +1821,11 @@
         const type = msg.type || msg.action || msg.event;
 
         switch (type) {
+          case 'ai_disclosure':
+            appendAIMessage(`🤖 ${msg.text}`);
+            if (msg.audio) queueAudioPlayback(msg.audio);
+            break;
+
           case 'transcript':
           case 'stt':
             // Real-time or interim transcript
@@ -1823,17 +1833,18 @@
             break;
 
           case 'response':
+          case 'response_text':
           case 'assistant':
           case 'message':
             // AI textual reply
             appendAIMessage(msg.text || msg.content || msg.message);
-            // If audio included with response
             if (msg.audio || msg.tts_audio) {
               queueAudioPlayback(msg.audio || msg.tts_audio);
             }
             break;
 
           case 'audio':
+          case 'audio_chunk':
           case 'tts':
             // Direct TTS audio payload
             if (msg.audio || msg.data) {
@@ -1841,10 +1852,26 @@
             }
             break;
 
+          case 'clarification_needed':
+            appendClarificationMessage(msg.question, msg.options);
+            break;
+
+          case 'query_response':
+            if (msg.spokenResponse || msg.response) {
+              appendAIMessage(msg.spokenResponse || msg.response);
+            }
+            break;
+
           case 'ledger_update':
           case 'transaction':
             // Ledger entry created / updated
-            handleLedgerUpdate(msg.transaction, msg.summary);
+            {
+              const tx = msg.transaction || msg.entry;
+              if (tx && msg.balance && typeof msg.balance.balance !== 'undefined') {
+                tx.balance = msg.balance.balance;
+              }
+              handleLedgerUpdate(tx, msg.summary);
+            }
             break;
 
           case 'ledger_summary':
@@ -2362,6 +2389,36 @@
       scrollToBottom();
     }
 
+    function appendClarificationMessage(question, options) {
+      const bubble = document.createElement('div');
+      bubble.className = 'msg-ai clarification-box';
+      const optionsHtml = (options || []).map(opt => `
+        <button class="clarification-chip" style="background: #2D5016; color: white; border: none; border-radius: 16px; padding: 6px 12px; font-size: 0.82rem; cursor: pointer; font-weight: 500;" onclick="handleClarificationSelection('${escapeHtml(opt)}')">
+          👤 ${escapeHtml(opt)}
+        </button>
+      `).join('');
+
+      bubble.innerHTML = `
+        <div class="ai-header">
+          <span class="ai-tag"><span>❓</span> Grahak Clarification</span>
+        </div>
+        <div class="msg-text" style="font-weight: 600;">${escapeHtml(question)}</div>
+        <div class="clarification-options" style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+          ${optionsHtml}
+        </div>
+        <div class="msg-meta">${getCurrentTimeStr()}</div>
+      `;
+
+      chatHistory.insertBefore(bubble, liveTranscript);
+      scrollToBottom();
+      speakText(question);
+    }
+
+    window.handleClarificationSelection = function(option) {
+      appendUserMessage(option);
+      sendJson({ type: 'text_input', text: option });
+    };
+
     function appendAIMessage(text) {
       const bubble = document.createElement('div');
       bubble.className = 'msg-ai';
@@ -2400,7 +2457,7 @@
         </div>
         <div class="ledger-card-body">
           <div class="customer-info-box">
-            <span class="customer-name">${escapeHtml(tx.customer || tx.name || 'Grahak')}</span>
+            <span class="customer-name">${escapeHtml(tx.customerName || tx.customer || tx.name || 'Grahak')}</span>
             <span class="customer-note">${escapeHtml(tx.note || tx.items || 'Khata entry')}</span>
           </div>
           <div class="amount-info-box">
@@ -2556,7 +2613,8 @@
     // 10. LOCAL KHATA DATABASE HELPER & OFFLINE SIMULATION
     // ==========================================================================
     function applyTransactionToLocalKhata(tx) {
-      let cust = khataData.customers.find(c => c.name.toLowerCase() === (tx.customer || tx.name).toLowerCase());
+      const targetName = (tx.customerName || tx.customer || tx.name || '').trim();
+      let cust = khataData.customers.find(c => c.name.toLowerCase() === targetName.toLowerCase());
       const amount = Number(tx.amount) || 0;
       const isCredit = (tx.type === 'credit' || tx.type === 'udhaar');
 
@@ -2564,7 +2622,7 @@
         // Create new customer
         cust = {
           id: 'cust-' + Date.now(),
-          name: tx.customer || tx.name,
+          name: targetName || 'Grahak',
           phone: tx.phone || '+91 9XXXX XXXXX',
           balance: 0,
           lastUpdated: 'Abhi',
