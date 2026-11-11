@@ -14,7 +14,12 @@ import { dirname, join } from 'node:path';
 export const GNANI_KEY_FILENAME = '.gnani-key';
 
 export class KeyStore {
-  constructor({ file = join(process.cwd(), GNANI_KEY_FILENAME), envKey = process.env.GNANI_API_KEY || '' } = {}) {
+  constructor({
+    // GNANI_KEY_FILE keeps the key on a mounted volume, so a key saved from the
+    // app survives a redeploy instead of living in the container layer.
+    file = process.env.GNANI_KEY_FILE || join(process.cwd(), GNANI_KEY_FILENAME),
+    envKey = process.env.GNANI_API_KEY || '',
+  } = {}) {
     this.file = file;
     this.envKey = String(envKey || '').trim();
   }
