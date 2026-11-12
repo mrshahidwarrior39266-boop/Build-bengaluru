@@ -212,6 +212,52 @@
       font-weight: 800;
     }
     .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+    .email-form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .email-input {
+      width: 100%;
+      height: 48px;
+      padding: 0 14px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      font-size: 0.92rem;
+      font-family: inherit;
+      color: var(--ink);
+      background: var(--paper);
+      outline: none;
+      transition: border-color 0.16s ease, background 0.16s ease;
+    }
+    .email-input:focus {
+      border-color: var(--brand);
+      background: #fff;
+    }
+    .btn-email-submit {
+      width: 100%;
+      height: 48px;
+      border: none;
+      border-radius: 13px;
+      background: var(--brand);
+      color: #fff;
+      font-size: 0.94rem;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background 0.16s ease, transform 0.16s ease;
+    }
+    .btn-email-submit:hover {
+      background: var(--brand-dark);
+      transform: translateY(-1px);
+    }
+    .btn-email-submit:active {
+      transform: none;
+    }
     .demo-link {
       text-align: center;
       font-size: 0.8rem;
@@ -280,13 +326,28 @@
         <span id="google-btn-label">Google se sign in karein</span>
       </a>
 
-      <div class="divider">ya</div>
-      <a class="demo-link" href="/" id="demo-link" hidden>Bina sign-in app kholein (demo)</a>
+      <div class="divider">ya direct email se khata kholein</div>
+
+      <form class="email-form" id="email-form" onsubmit="handleEmailSignIn(event)">
+        <input
+          type="email"
+          id="email-input"
+          class="email-input"
+          placeholder="apna.email@gmail.com"
+          required
+          autocomplete="email"
+        />
+        <button type="submit" class="btn-email-submit" id="btn-email-submit">
+          <span>🚀 Khata Kholein</span>
+        </button>
+      </form>
+
+      <a class="demo-link" href="/" id="demo-link">Bina sign-in demo app dekhein</a>
 
       <p class="fineprint">
-        Sign in karke aap hamari <a href="/login#privacy">data suraksha</a> sharten
-        maante hain. Hum aapki Google password kabhi nahi dekhte — sirf naam aur
-        email aata hai. <a href="/login#privacy">Privacy</a>
+        Sign in karne par har email ID ka apna alag, surakshit khata banta hai.
+        Doosri dukaan ka data aapko kabhi nahi dikhega.
+        <a href="#privacy">Privacy & Security</a>
       </p>
       <p class="foot">Made for Bharat ki dukaanon ke liye 🇮🇳</p>
     </section>
@@ -304,12 +365,36 @@
         notice.className = 'notice is-visible' + (info ? ' is-info' : '');
       }
 
+      window.handleEmailSignIn = async function(e) {
+        e.preventDefault();
+        const email = document.getElementById('email-input').value.trim();
+        if (!email) return;
+        const btn = document.getElementById('btn-email-submit');
+        btn.disabled = true;
+        btn.textContent = 'Khata khol rahe hain...';
+        try {
+          const res = await fetch('/auth/email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
+          });
+          const data = await res.json();
+          if (data.success) {
+            location.replace(data.redirect || '/');
+          } else {
+            show(data.error || 'Sign in nahi ho paya.');
+            btn.disabled = false;
+            btn.textContent = '🚀 Khata Kholein';
+          }
+        } catch (err) {
+          show('Server se sampark nahi ho paya.');
+          btn.disabled = false;
+          btn.textContent = '🚀 Khata Kholein';
+        }
+      };
+
       if (auth === 'disabled') {
-        show('Is server par Google sign-in configured nahi hai. Demo ke liye neeche app kholein.', true);
-        document.getElementById('google-btn').hidden = true;
-        const demo = document.getElementById('demo-link');
-        demo.hidden = false;
-        demo.href = '/';
+        show('Google OAuth configured nahi hai. Aap neeche apna email daal kar apna alag khata chalu kar sakte hain.', true);
       } else if (auth === 'error' || error) {
         show(error === 'state'
           ? 'Sign-in link purana ho gaya. Dobara Google button dabayein.'

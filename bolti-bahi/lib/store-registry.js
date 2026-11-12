@@ -77,6 +77,25 @@ export class StoreRegistry {
     return this.getStore(id);
   }
 
+  /** Create or retrieve the shop by email ID so each email has its own isolated ledger. */
+  upsertEmailStore({ email, name = '' }) {
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      throw new Error('Valid email address daalein.');
+    }
+    const existing = this.meta.prepare('SELECT * FROM stores WHERE lower(email) = ?').get(cleanEmail);
+    if (existing) {
+      return this.getStore(existing.id);
+    }
+    const id = randomUUID();
+    const ownerName = name || cleanEmail.split('@')[0];
+    this.meta.prepare(`
+      INSERT INTO stores (id, google_sub, email, owner_name, store_name)
+      VALUES (?, NULL, ?, ?, '')
+    `).run(id, cleanEmail, ownerName);
+    return this.getStore(id);
+  }
+
   setStoreName(id, storeName) {
     const clean = String(storeName || '').trim().replace(/\s+/g, ' ').slice(0, 60);
     if (clean.length < 2) throw new Error('Dukaan ka naam likhein.');

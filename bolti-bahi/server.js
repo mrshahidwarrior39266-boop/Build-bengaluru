@@ -171,6 +171,25 @@ app.get('/auth/google/callback', async (req, res) => {
   }
 });
 
+app.post('/auth/email', (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const name = String(req.body?.name || '').trim();
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ success: false, error: 'Kripya sahi email address likhein.' });
+  }
+  try {
+    const store = registry.upsertEmailStore({ email, name });
+    const session = registry.createSession(store.id);
+    res.setHeader('Set-Cookie', [
+      cookieHeader(SESSION_COOKIE, session.token, { maxAgeMs: 30 * 24 * 60 * 60 * 1000, secure: isSecureRequest(req) }),
+    ]);
+    console.log('[Auth] signed in store via email:', store.id, email);
+    return res.json({ success: true, redirect: '/' });
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
 app.post('/auth/logout', (req, res) => {
   if (req.sessionToken) registry.destroySession(req.sessionToken);
   res.setHeader('Set-Cookie', cookieHeader(SESSION_COOKIE, '', {
@@ -223,8 +242,8 @@ app.post('/api/store', (req, res) => {
   if (!isSameOrigin(req)) {
     return res.status(403).json({ success: false, error: 'Same-origin request required.' });
   }
-  if (!googleAuth.enabled) {
-    return res.status(400).json({ success: false, error: 'Google sign-in configured nahi hai.' });
+  if (!req.store) {
+    return res.status(401).json({ success: false, error: 'login_required' });
   }
   try {
     const store = registry.setStoreName(req.store.id, req.body?.name);
@@ -770,10 +789,11 @@ async function speak(ws, text, sessionId) {
   try {
     const tts = new GnaniTTS(GNANI_API_KEY);
     const chunks = await tts.synthesize(text, {
-      voice: 'Shivani',
+      voice: process.env.GNANI_TTS_VOICE || 'Shivani',
       model: 'timbre-v3.0',
-      language: 'hi-IN',
-      speed: 1.0,
+      language: process.env.GNANI_TTS_LANGUAGE || 'hi-IN',
+      // Slower, articulate conversational speed (0.94) produces far more natural Indian prosody
+      speed: Number(process.env.GNANI_TTS_SPEED || 0.94),
       sampleRate: 16000,
       // Headerless PCM: the browser wraps it once for AudioContext playback, so
       // a chunk boundary can never split a WAV header.

@@ -20,13 +20,13 @@ const MIN_CONFIDENCE = 0.6;
  * override the preset when a provider renames a model.
  */
 export const PROVIDERS = {
-  xai: { baseUrl: 'https://api.x.ai/v1', model: 'grok-4-fast' },
   groq: { baseUrl: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile' },
-  openrouter: { baseUrl: 'https://openrouter.ai/api/v1', model: 'meta-llama/llama-3.3-70b-instruct:free' },
   gemini: { baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.0-flash' },
+  openrouter: { baseUrl: 'https://openrouter.ai/api/v1', model: 'meta-llama/llama-3.3-70b-instruct:free' },
+  xai: { baseUrl: 'https://api.x.ai/v1', model: 'grok-4-fast' },
 };
 
-const DEFAULT_PROVIDER = 'xai';
+const DEFAULT_PROVIDER = 'groq';
 
 export const QUERY_KINDS = new Set([
   'customer_balance',
@@ -150,19 +150,28 @@ export function bestCustomerMatch(spoken, customers, { threshold = 0.84 } = {}) 
 
 export class LlmBrain {
   constructor({
-    apiKey = process.env.LLM_API_KEY || process.env.GROK_API_KEY || process.env.XAI_API_KEY
-      || process.env.GROQ_API_KEY || process.env.OPENROUTER_API_KEY || process.env.GEMINI_API_KEY,
-    provider = process.env.LLM_PROVIDER || DEFAULT_PROVIDER,
+    apiKey = process.env.LLM_API_KEY || process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY
+      || process.env.OPENROUTER_API_KEY || process.env.GROK_API_KEY || process.env.XAI_API_KEY,
+    provider = process.env.LLM_PROVIDER,
     model = process.env.LLM_MODEL,
     baseUrl = process.env.LLM_BASE_URL,
     mode = process.env.LLM_MODE || 'assist',
     timeoutMs = Number(process.env.LLM_TIMEOUT_MS || DEFAULT_TIMEOUT_MS),
     fetchImpl = globalThis.fetch,
   } = {}) {
-    const requested = String(provider || DEFAULT_PROVIDER).toLowerCase();
+    const rawKey = typeof apiKey === 'string' ? apiKey.trim() : '';
+    let autoProvider = provider;
+    if (!autoProvider) {
+      if (process.env.GROQ_API_KEY || rawKey.startsWith('gsk_')) autoProvider = 'groq';
+      else if (process.env.GEMINI_API_KEY || rawKey.startsWith('AIza')) autoProvider = 'gemini';
+      else if (process.env.OPENROUTER_API_KEY || rawKey.startsWith('sk-or-')) autoProvider = 'openrouter';
+      else if (process.env.XAI_API_KEY || process.env.GROK_API_KEY || rawKey.startsWith('xai-')) autoProvider = 'xai';
+      else autoProvider = DEFAULT_PROVIDER;
+    }
+    const requested = String(autoProvider || DEFAULT_PROVIDER).toLowerCase();
     this.provider = PROVIDERS[requested] ? requested : DEFAULT_PROVIDER;
     const preset = PROVIDERS[this.provider];
-    this.apiKey = typeof apiKey === 'string' ? apiKey.trim() : '';
+    this.apiKey = rawKey;
     this.model = String(model || preset.model);
     this.baseUrl = String(baseUrl || preset.baseUrl).replace(/\/+$/, '');
     this.mode = ['off', 'fallback', 'assist'].includes(String(mode)) ? String(mode) : 'assist';
