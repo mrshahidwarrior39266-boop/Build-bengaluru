@@ -234,6 +234,100 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// High-Fidelity Human-Like Neural TTS (/api/tts)
+// Publicly accessible for UI and speech playback
+// 1. Synthesizes via Gnani Timbre if GNANI_API_KEY is configured
+// 2. Synthesizes via Google Neural Hindi voice if no key (crystal-clear human voice)
+// ---------------------------------------------------------------------------
+const ttsCache = new Map();
+
+app.get('/api/tts', async (req, res) => {
+  const text = String(req.query.text || '').trim();
+  if (!text) return res.status(400).send('text is required');
+
+  const clean = text
+    .replace(/₹\s*(\d+)/g, '$1 rupaye ')
+    .replace(/₹/g, 'rupaye ')
+    .slice(0, 600);
+
+  const cacheKey = `${GNANI_API_KEY ? 'gnani' : 'neural'}:${clean}`;
+  if (ttsCache.has(cacheKey)) {
+    const cached = ttsCache.get(cacheKey);
+    res.set({
+      'Content-Type': cached.contentType,
+      'Content-Length': cached.buffer.length,
+      'Cache-Control': 'public, max-age=86400',
+    });
+    return res.end(cached.buffer);
+  }
+
+  // 1. Gnani Timbre if API key is active
+  if (GNANI_API_KEY) {
+    try {
+      const tts = new GnaniTTS(GNANI_API_KEY);
+      const chunks = await tts.synthesize(clean, {
+        voice: process.env.GNANI_TTS_VOICE || 'Shivani',
+        model: 'timbre-v3.0',
+        language: process.env.GNANI_TTS_LANGUAGE || 'hi-IN',
+        speed: Number(process.env.GNANI_TTS_SPEED || 0.94),
+        container: 'wav',
+      });
+      if (chunks.length > 0) {
+        const audioBuf = Buffer.concat(chunks.map((c) => Buffer.from(c.audio, 'base64')));
+        if (ttsCache.size > 200) ttsCache.clear();
+        ttsCache.set(cacheKey, { buffer: audioBuf, contentType: 'audio/wav' });
+        res.set({
+          'Content-Type': 'audio/wav',
+          'Content-Length': audioBuf.length,
+          'Cache-Control': 'public, max-age=86400',
+        });
+        return res.end(audioBuf);
+      }
+    } catch (gnaniErr) {
+      console.warn('[TTS] Gnani synthesis failed, using Neural Hindi TTS:', gnaniErr.message);
+    }
+  }
+
+  // 2. High-fidelity Neural Hindi Voice
+  try {
+    const segments = clean.match(/[^.!?।\n]+[.!?।\n]?/g) || [clean];
+    const buffers = [];
+
+    for (const segment of segments) {
+      const trimmed = segment.trim();
+      if (!trimmed) continue;
+      const url = `https://translate.google.com/translate_tts?ie=UTF-8&tl=hi&client=tw-ob&q=${encodeURIComponent(trimmed)}`;
+      const resp = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Referer': 'https://translate.google.com/',
+        },
+      });
+      if (resp.ok) {
+        const ab = await resp.arrayBuffer();
+        buffers.push(Buffer.from(ab));
+      }
+    }
+
+    if (buffers.length > 0) {
+      const fullBuffer = Buffer.concat(buffers);
+      if (ttsCache.size > 200) ttsCache.clear();
+      ttsCache.set(cacheKey, { buffer: fullBuffer, contentType: 'audio/mpeg' });
+      res.set({
+        'Content-Type': 'audio/mpeg',
+        'Content-Length': fullBuffer.length,
+        'Cache-Control': 'public, max-age=86400',
+      });
+      return res.end(fullBuffer);
+    }
+  } catch (err) {
+    console.error('[TTS] Neural voice error:', err.message);
+  }
+
+  return res.status(502).json({ success: false, error: 'tts_failed' });
+});
+
 function requireAuth(req, res, next) {
   if (!googleAuth.enabled) return next();
   if (!req.authed) return res.status(401).json({ success: false, error: 'login_required' });
@@ -425,98 +519,7 @@ app.post('/api/text', async (req, res) => {
   return res.json({ success: true, ...result, state: req.ledger.getUiState() });
 });
 
-// ---------------------------------------------------------------------------
-// High-Fidelity Human-Like Neural TTS (/api/tts)
-// 1. Synthesizes via Gnani Timbre if GNANI_API_KEY is configured
-// 2. Synthesizes via Google Neural Hindi voice if no key (crystal-clear human voice)
-// ---------------------------------------------------------------------------
-const ttsCache = new Map();
 
-app.get('/api/tts', async (req, res) => {
-  const text = String(req.query.text || '').trim();
-  if (!text) return res.status(400).send('text is required');
-
-  const clean = text
-    .replace(/₹\s*(\d+)/g, '$1 rupaye ')
-    .replace(/₹/g, 'rupaye ')
-    .slice(0, 600);
-
-  const cacheKey = `${GNANI_API_KEY ? 'gnani' : 'neural'}:${clean}`;
-  if (ttsCache.has(cacheKey)) {
-    const cached = ttsCache.get(cacheKey);
-    res.set({
-      'Content-Type': cached.contentType,
-      'Content-Length': cached.buffer.length,
-      'Cache-Control': 'public, max-age=86400',
-    });
-    return res.end(cached.buffer);
-  }
-
-  // 1. Gnani Timbre if API key is active
-  if (GNANI_API_KEY) {
-    try {
-      const tts = new GnaniTTS(GNANI_API_KEY);
-      const chunks = await tts.synthesize(clean, {
-        voice: process.env.GNANI_TTS_VOICE || 'Shivani',
-        model: 'timbre-v3.0',
-        language: process.env.GNANI_TTS_LANGUAGE || 'hi-IN',
-        speed: Number(process.env.GNANI_TTS_SPEED || 0.94),
-        container: 'wav',
-      });
-      if (chunks.length > 0) {
-        const audioBuf = Buffer.concat(chunks.map((c) => Buffer.from(c.audio, 'base64')));
-        if (ttsCache.size > 200) ttsCache.clear();
-        ttsCache.set(cacheKey, { buffer: audioBuf, contentType: 'audio/wav' });
-        res.set({
-          'Content-Type': 'audio/wav',
-          'Content-Length': audioBuf.length,
-          'Cache-Control': 'public, max-age=86400',
-        });
-        return res.end(audioBuf);
-      }
-    } catch (gnaniErr) {
-      console.warn('[TTS] Gnani synthesis failed, using Neural Hindi TTS:', gnaniErr.message);
-    }
-  }
-
-  // 2. High-fidelity Neural Hindi Voice
-  try {
-    const segments = clean.match(/[^.!?।\n]+[.!?।\n]?/g) || [clean];
-    const buffers = [];
-
-    for (const segment of segments) {
-      const trimmed = segment.trim();
-      if (!trimmed) continue;
-      const url = `https://translate.google.com/translate_tts?ie=UTF-8&tl=hi&client=tw-ob&q=${encodeURIComponent(trimmed)}`;
-      const resp = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Referer': 'https://translate.google.com/',
-        },
-      });
-      if (resp.ok) {
-        const ab = await resp.arrayBuffer();
-        buffers.push(Buffer.from(ab));
-      }
-    }
-
-    if (buffers.length > 0) {
-      const fullBuffer = Buffer.concat(buffers);
-      if (ttsCache.size > 200) ttsCache.clear();
-      ttsCache.set(cacheKey, { buffer: fullBuffer, contentType: 'audio/mpeg' });
-      res.set({
-        'Content-Type': 'audio/mpeg',
-        'Content-Length': fullBuffer.length,
-        'Cache-Control': 'public, max-age=86400',
-      });
-      return res.end(fullBuffer);
-    }
-  } catch (err) {
-    console.error('[TTS] Neural voice error:', err.message);
-  }
-
-  return res.status(502).json({ success: false, error: 'tts_failed' });
-});
 
 /**
  * Manual entry from the UI. Voice is the hero path, but a shopkeeper must be
