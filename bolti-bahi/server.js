@@ -59,14 +59,6 @@ const ledger = registry.ledgerFor('default');
 const llm = new LlmBrain();
 const agentFor = (storeLedger) => new KhataAgent({ ledger: storeLedger, brain: llm });
 
-app.use(express.static(join(__dirname, 'public'), {
-  setHeaders(res, filePath) {
-    // The service worker and manifest must never be served from a stale cache.
-    if (filePath.endsWith('sw.js') || filePath.endsWith('.webmanifest')) {
-      res.setHeader('Cache-Control', 'no-cache');
-    }
-  },
-}));
 app.use(express.json({ limit: '2mb' }));
 app.set('trust proxy', 1);
 
@@ -76,6 +68,7 @@ app.set('trust proxy', 1);
 
 const SESSION_COOKIE = 'bb_session';
 const OAUTH_STATE_COOKIE = 'bb_oauth_state';
+const LOGIN_PAGE = join(__dirname, 'public', 'login.html');
 
 function readCookie(req, name) {
   const header = req?.headers?.cookie;
@@ -109,12 +102,29 @@ app.use((req, res, next) => {
   next();
 });
 
+// A signed-out browser gets a real login page, not the app shell with a modal
+// flashed over it. API clients still get the JSON 401 from requireAuth below.
+app.get(['/', '/index.html'], (req, res, next) => {
+  if (googleAuth.enabled && !req.authed) {
+    res.set('Cache-Control', 'no-store');
+    return res.sendFile(LOGIN_PAGE);
+  }
+  return next();
+});
+
+app.get('/login', (req, res) => {
+  if (googleAuth.enabled && req.authed) return res.redirect('/');
+  res.set('Cache-Control', 'no-store');
+  return res.sendFile(LOGIN_PAGE);
+});
+
 app.get('/api/session', (req, res) => {
   res.set('Cache-Control', 'no-store');
   res.json({
     success: true,
     authRequired: googleAuth.enabled,
     authenticated: req.authed,
+    loginUrl: googleAuth.enabled && !req.authed ? '/login' : null,
     // Never describe a shop to someone who is not signed into it.
     store: req.store && (req.authed || !googleAuth.enabled) ? {
       id: req.store.id,
@@ -126,7 +136,7 @@ app.get('/api/session', (req, res) => {
 });
 
 app.get('/auth/google', (req, res) => {
-  if (!googleAuth.enabled) return res.redirect('/?auth=disabled');
+  if (!googleAuth.enabled) return res.redirect('/login?auth=disabled');
   const state = randomBytes(16).toString('hex');
   res.setHeader('Set-Cookie', cookieHeader(OAUTH_STATE_COOKIE, state, {
     maxAgeMs: 10 * 60 * 1000,
@@ -136,12 +146,13 @@ app.get('/auth/google', (req, res) => {
 });
 
 app.get('/auth/google/callback', async (req, res) => {
-  if (!googleAuth.enabled) return res.redirect('/');
+  if (!googleAuth.enabled) return res.redirect('/login?auth=disabled');
   const code = String(req.query.code || '');
   const state = String(req.query.state || '');
   const expected = readCookie(req, OAUTH_STATE_COOKIE);
   if (!code || !state || !expected || state !== expected) {
-    return res.status(400).send('Sign-in state match nahi hua. Dobara koshish karein.');
+    console.warn('[Auth] state mismatch or missing code');
+    return res.status(400).sendFile(LOGIN_PAGE);
   }
 
   try {
@@ -156,7 +167,7 @@ app.get('/auth/google/callback', async (req, res) => {
     return res.redirect('/');
   } catch (err) {
     console.error('[Auth] Google sign-in failed:', err.message);
-    return res.status(400).send('Google sign-in fail ho gaya. Dobara koshish karein.');
+    return res.status(400).sendFile(LOGIN_PAGE);
   }
 });
 
@@ -169,6 +180,15 @@ app.post('/auth/logout', (req, res) => {
   return res.json({ success: true });
 });
 
+app.use(express.static(join(__dirname, 'public'), {
+  setHeaders(res, filePath) {
+    // The service worker and manifest must never be served from a stale cache.
+    if (filePath.endsWith('sw.js') || filePath.endsWith('.webmanifest')) {
+      res.setHeader('Cache-Control', 'no-cache');
+    }
+  },
+}));
+
 // ---------------------------------------------------------------------------
 // REST API
 // ---------------------------------------------------------------------------
@@ -179,7 +199,10 @@ app.get('/api/health', (req, res) => {
     stt: Boolean(GNANI_API_KEY),
     tts: Boolean(GNANI_API_KEY),
     llm: llm.enabled,
+    llmMode: llm.mode,
+    llmProvider: llm.enabled ? llm.provider : null,
     llmModel: llm.enabled ? llm.model : null,
+    googleAuth: googleAuth.enabled,
     node: process.version,
     ledger: 'local-sqlite',
     transcripts: 'encrypted-at-rest',
@@ -486,6 +509,8 @@ wss.on('connection', (clientWs, upgradeReq) => {
   const agent = new KhataAgent({ ledger: storeLedger, brain: llm });
   let sttSocket = null;
   let sttCloseTimer = null;
+  let previousTranscript = '';
+  const seenSegments = new Set();
 
   // Prisma needs 1024-byte frames at a real-time pace, whatever the browser sends.
   const framer = new PcmFramer({
@@ -512,6 +537,7 @@ wss.on('connection', (clientWs, upgradeReq) => {
 
   async function handleText(text) {
     if (!text || typeof text !== 'string') return;
+    previousTranscript = text;
     send(clientWs, 'transcript', { text, is_final: true });
 
     const result = await agent.handleAsync(text);
@@ -614,6 +640,24 @@ wss.on('connection', (clientWs, upgradeReq) => {
 
     try {
       const stt = new GnaniSTT(GNANI_API_KEY);
+      // Customer names are the words Prisma is most likely to mishear, and a
+      // wrong name writes a wrong ledger row. Feed the known names (and their
+      // tokens) as keyterms, along with the shop topic and the previous turn.
+      const customerNames = storeLedger.getCustomerSummary()
+        .slice(0, 40)
+        .map((row) => String(row.customer_name || '').trim())
+        .filter(Boolean);
+      const nameTokens = customerNames
+        .flatMap((name) => name.split(/\s+/))
+        .filter((word) => word.length >= 3);
+      const keyterms = [...new Set([...customerNames, ...nameTokens])].slice(0, 120);
+
+      const vad = {};
+      if (process.env.GNANI_VAD_THRESHOLD) vad['x-vad-threshold'] = process.env.GNANI_VAD_THRESHOLD;
+      if (process.env.GNANI_MIN_SPEECH_MS) vad['x-min-speech-ms'] = process.env.GNANI_MIN_SPEECH_MS;
+      if (process.env.GNANI_MIN_SILENCE_MS) vad['x-min-silence-ms'] = process.env.GNANI_MIN_SILENCE_MS;
+      if (process.env.GNANI_MIN_SEGMENT_MS) vad['x-min-segment-ms'] = process.env.GNANI_MIN_SEGMENT_MS;
+
       sttSocket = await stt.connect({
         model: 'prisma-v3.0',
         // Streaming takes one locale; GNANI_LANGUAGE lets a shop switch it
@@ -621,6 +665,10 @@ wss.on('connection', (clientWs, upgradeReq) => {
         languageCode: process.env.GNANI_LANGUAGE || 'hi-IN',
         format: 'codemix',
         sampleRate: 16000,
+        keyterms,
+        topic: process.env.GNANI_TOPIC || 'kirana dukaan ka khata, udhaar aur jama hisaab',
+        previousText: previousTranscript,
+        vad,
       });
       framer.start();
 
@@ -651,6 +699,16 @@ wss.on('connection', (clientWs, upgradeReq) => {
             const text = typeof payload.text === 'string' ? payload.text.trim() : '';
             if (!text) return;
             const isFinal = payload.is_final !== false;
+            // Prisma can resend a segment after a reconnect; the segment id
+            // makes that idempotent so one sentence never becomes two entries.
+            if (isFinal && payload.segment_id) {
+              if (seenSegments.has(payload.segment_id)) return;
+              seenSegments.add(payload.segment_id);
+              if (seenSegments.size > 50) {
+                const oldest = seenSegments.values().next().value;
+                seenSegments.delete(oldest);
+              }
+            }
             send(clientWs, 'transcript', {
               text,
               is_final: isFinal,

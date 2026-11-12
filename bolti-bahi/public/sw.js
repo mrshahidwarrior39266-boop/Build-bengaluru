@@ -6,10 +6,12 @@
  * with an explicit offline error instead of a fake success.
  */
 
-const CACHE = 'bolti-bahi-shell-v2';
+const CACHE = 'bolti-bahi-shell-v3';
+// Do not precache '/': when auth is on, that URL is the login page for a
+// signed-out browser and the app shell for a signed-in one.
 const SHELL = [
-  '/',
   '/index.html',
+  '/login.html',
   '/offline.html',
   '/manifest.webmanifest',
   '/icons/icon-192.png',

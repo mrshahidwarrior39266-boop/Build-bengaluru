@@ -57,9 +57,11 @@ Browser (PTT / Web Speech API fallback)
    ▼
 server.js ──► KhataAgent (lib/agent.js)
    │              │
-   │              ├─ intent-parser ── hindi-numbers
-   │              ├─ speech-guard   (no pressure/medical/lending language)
-   │              └─ reminders      (opt-in only)
+   │              ├─ intent-parser ── hindi-numbers   (deterministic, exact ₹)
+   │              ├─ llm-brain       (second reader, only when a slot is missing;
+   │              │                   amounts must already be in the transcript)
+   │              ├─ speech-guard    (no pressure/medical/lending language)
+   │              └─ reminders       (opt-in only)
    ▼
 LedgerDB (lib/ledger-db.js) — local SQLite via node:sqlite
    └─ transcripts AES-256-GCM encrypted (lib/crypto-store.js), purgeable
@@ -83,8 +85,14 @@ Open http://localhost:3000 on the phone or laptop.
 | Variable | Purpose |
 |---|---|
 | `GNANI_API_KEY` | Gnani Prisma v3.0 STT + Timbre v3.0 TTS. Optional; without it `/api/health` reports `stt:false` and the browser speech fallback is used. Add it as a secret, never in a tracked file, then run `npm run verify:gnani`. |
-| `LLM_API_KEY` | Optional Grok (xAI) fallback for sentences the local parser cannot read. Also read as `GROK_API_KEY` / `XAI_API_KEY`. Without it, unreadable speech simply stays unreadable — nothing is invented. |
-| `LLM_MODEL` | Model for that fallback (default `grok-4-fast`). |
+| `GNANI_LANGUAGE` | Streaming locale (default `hi-IN`). Use `indic-auto`, or a code such as `bn-IN`, `ta-IN`, `mr-IN`. |
+| `GNANI_TOPIC` | Free-text context sent to Prisma (`kirana dukaan ka khata...`) so shop vocabulary is favoured. |
+| `GNANI_VAD_*` | `GNANI_VAD_THRESHOLD`, `GNANI_MIN_SPEECH_MS`, `GNANI_MIN_SILENCE_MS`, `GNANI_MIN_SEGMENT_MS` tune the server-side voice gate for a noisy counter. |
+| `LLM_API_KEY` | Optional LLM brain for sentences the local parser is unsure about. Also read as `GROK_API_KEY` / `XAI_API_KEY` / `GROQ_API_KEY` / `OPENROUTER_API_KEY` / `GEMINI_API_KEY`. Without it, unreadable speech simply stays unreadable — nothing is invented. |
+| `LLM_PROVIDER` | OpenAI-compatible preset: `xai` (default), `groq`, `openrouter`, `gemini`. |
+| `LLM_MODE` | `assist` (default) helps only when a name, direction or parse is missing; `fallback` only for fully unreadable sentences; `off` never calls the model. |
+| `LLM_MODEL` | Model for that brain (default from the provider preset, e.g. `grok-4-fast`). |
+| `LLM_TIMEOUT_MS` | Voice-turn budget for the brain (default 3000 ms). A slow model is ignored. |
 | `PORT` | HTTP/WebSocket port (default 3000). |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Enables Google sign-in. When both are set, every `/api` route and the WebSocket require a session. |
 | `GOOGLE_REDIRECT_URI` | OAuth callback, e.g. `https://your-app.up.railway.app/auth/google/callback`. Defaults to the request host. |
@@ -115,46 +123,55 @@ environment it wins, so a deployed instance stays secret-managed.
 
 Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` and the app becomes multi-shop:
 
-- the browser shows a **Google se sign in karein** screen; `/api/*` and `/ws`
+- a signed-out browser is served the dedicated **`/login`** page (Google branding,
+  Hinglish copy, clear errors) instead of the app shell; `/api/*` and `/ws`
   answer `401 login_required` until it signs in;
 - the first sign-in asks for the **dukaan ka naam**, which is shown in the header
   and stored with that account;
 - **every shop gets its own SQLite file** under `stores/`, so one shop's
   customers and balances are physically absent from another's ledger;
-- the session is an `HttpOnly`, `SameSite=Lax` cookie (30 days), created only
-  after Google's one-time code is exchanged server-side; the state nonce is
-  checked, and `POST /auth/logout` destroys the session.
+- the session is an `HttpOnly`, `SameSite=Lax` cookie (30 days, `Secure` on
+  HTTPS), created only after Google's one-time code is exchanged server-side; the
+  state nonce is checked, and `POST /auth/logout` destroys the session.
 
 With no Google credentials the app runs exactly as before in single-shop mode,
-which is what the offline tests use. `test/test-auth-store.js` drives the whole
-flow against a local Google stub: state mismatch is rejected, two accounts never
-see each other's rows, cross-origin writes stay `403`, the socket needs a
-session, and an old cookie stops working after logout.
+and `/login` explains that sign-in is not configured on that server. This is what
+the offline tests use. `test/test-auth-store.js` drives the whole flow against a
+local Google stub: the login page is served when signed out, the app shell only
+after sign-in, state mismatch is rejected, two accounts never see each other's
+rows, cross-origin writes stay `403`, the socket needs a session, and an old
+cookie stops working after logout.
 
 Create the OAuth client at **Google Cloud Console → APIs & Services →
 Credentials → OAuth client ID → Web application**, with the redirect URI
 `https://<your-host>/auth/google/callback`. The consent screen stays in testing
 mode until you publish it, so add test users while trialling.
 
-### Optional Grok fallback
+### Optional LLM brain (accuracy assist)
 
 Every amount is still parsed by `lib/intent-parser.js`, offline. The model is a
-*second* reader for phrasing the local grammar rejects ("wo pichhle hafte wala
-adjust kar do"), never the first one:
+*second reader* for the cases the local grammar is unsure about, never the first
+one:
 
-- it is only called when the deterministic parser returns `unknown`;
-- it must answer with strict JSON (`customerName`, `amount`, `type`, `confidence`);
-- the answer is rejected unless the name contains letters, the amount is a
-  positive number ≤ 1 crore, the direction is `credit`/`payment`, and confidence
-  is at least 0.55;
-- the accepted hint is re-parsed by the deterministic parser and written through
-  the normal ledger path, so ambiguity questions and validation still apply;
-- a slow or failing model (2.5 s budget) is ignored and the honest "samajh nahi
+- it is only called when the deterministic parser returns `unknown`, is missing
+  the customer, is missing credit-vs-payment, or hears a balance question with no
+  name — a normal `"Ramesh ka 340 udhaar"` costs zero network calls;
+- it must answer with strict JSON — `action` (`entry`, `correction`, `query`,
+  `unknown`), `customerName`, `entries: [{amount, type}]`, `query`,
+  `confidence` — and every amount must be grounded: if the local scanner found
+  money in the transcript, the model may only reuse those exact numbers;
+- a misheard known name (`Rameesh`) is repaired to the one unique existing
+  customer (`Ramesh`); an ambiguous or short name is never force-matched;
+- the accepted plan is converted into a canonical shop phrase and re-parsed by
+  the deterministic engine, so name resolution, ambiguity questions, dates,
+  audit notes and validation still apply;
+- a slow or failing model (3 s budget) is ignored and the honest "samajh nahi
   aaya" answer is used instead.
 
 `test/test-llm-brain.js` proves all of that against a local stub, including that
-no request is made without a key and that the model is never consulted for a
-sentence the local parser already understands.
+no request is made without a key, that a readable sentence never reaches the
+network, that a hallucinated amount is rejected, and that a nameless balance
+question or a missing direction is completed only through the ledger pipeline.
 
 It speaks the OpenAI chat-completions shape, so any compatible provider works:
 set `LLM_PROVIDER` to `xai` (default), `groq`, `openrouter` or `gemini` and put
@@ -218,7 +235,9 @@ The APK is a client — the ledger and the key live on the Bolti Bahi server.
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /api/health` | capability report (`stt`, `tts`, `ledger`, `transcripts`, retention) |
+| `GET /login` | Google sign-in page (served automatically to signed-out browsers when auth is configured) |
+| `GET /api/session` | `{authRequired, authenticated, store, owner, loginUrl}` — never the key |
+| `GET /api/health` | capability report (`stt`, `tts`, `llm`, `llmMode`, `googleAuth`, `ledger`, `transcripts`, retention) |
 | `GET /api/ledger` | all entries (notes decrypted in-process) |
 | `GET /api/ledger/summary` | per-customer totals |
 | `GET /api/state` | full UI snapshot |
@@ -317,7 +336,18 @@ stored or committed. Without the key the script prints `SKIPPED` and exits 0.
   own key to confirm Prisma/Timbre on your account; microphone quality under shop
   noise still needs a live demo check.
 - Speech recognition quality with heavy street noise depends on the STT provider;
-  the number parser is what guarantees exact amounts from the transcript.
+  the number parser is what guarantees exact amounts from the transcript. Prisma
+  may return Devanagari (`रमेश का ३४० उधार`) or Hinglish (`Ramesh ka 340 udhaar`);
+  both are parsed, and Devanagari stopwords are filtered so `का उधार` never
+  becomes a customer name.
+- The LLM brain only helps when `LLM_API_KEY` is set. If `/api/health` reports
+  `llm:false`, missing-slot sentences still ask a clarifying question instead of
+  being interpreted.
+- Google sign-in stays off until both `GOOGLE_CLIENT_ID` and
+  `GOOGLE_CLIENT_SECRET` are set in the deployment. `/api/health` reports
+  `googleAuth:true` only when it is active. Google's consent screen must be
+  published (or the tester added as a test user) for accounts outside your
+  project.
 - The demo stores data on the machine running the server (encrypted transcripts),
   not on a phone-local database.
 - A spoken correction targets the most recently recorded entry; after a compound

@@ -12,21 +12,25 @@ import { localYmd } from './shop-date.js';
 
 const { tokenKind } = _internals;
 
-const CREDIT_RE = /(?:udhaa?r|udhaari|udhari|credit|khata|khate|baaki|bakaya|likh|likha|chadha|saman|maal|le\s*gaya|le\s*liya)/;
-const GIFT_CREDIT_RE = /\bko\b[\s\S]*\b(?:de\s*do|do|dena|de\s*dena|dijiye)\b/;
-const PAYMENT_RE = /(?:\bdiya\b|\bdiye\b|\bdi\b|de\s*diya|de\s*diye|jama|jamaa|payment|\bpay\b|bhugtan|bhugtaan|vasooli|wasooli|chukta|chuka|wapas|\bmila\b|\bmile\b|aaya|aaye|received|paid|deposit)/;
-const CORRECTION_RE = /(?:^|\b)(?:nahi|nahin|nhi|no|galat|galti|sorry|maafi|matlab|actually|correction|correct|badal|badlo|change|theek|sahi)\b|(?:kar\s*do|kardo|kar\s*de)\s*$/;
+// Hinglish is spoken, but Prisma often returns Devanagari. Every pattern below
+// therefore covers both scripts: without the Devanagari alternatives a normal
+// transcript like "रमेश का ३४० उधार" was treated as a payment or, worse, as a
+// customer named "का उधार".
+const CREDIT_RE = /(?:udhaa?r|udhaari|udhari|credit|khata|khate|baaki|bakaya|likh|likha|chadha|saman|maal|le\s*gaya|le\s*liya|उधा[रर]|उधारी|क्रेडिट|खाता|खाते|बाकी|बकाया|लिख|लिखा|चढ़ा|सामान|माल|ले\s*गया|ले\s*लिया)/u;
+const GIFT_CREDIT_RE = /(?:\bko\b|को)[\s\S]*(?:\bde\s*do\b|\bdo\b|\bdena\b|\bde\s*dena\b|\bdijiye\b|दे\s*दो|दो|देना|दे\s*देना|दीजिए)/u;
+const PAYMENT_RE = /(?:\bdiya\b|\bdiye\b|\bdi\b|de\s*diya|de\s*diye|jama|jamaa|payment|\bpay\b|bhugtan|bhugtaan|vasooli|wasooli|chukta|chuka|wapas|\bmila\b|\bmile\b|aaya|aaye|received|paid|deposit|दिया|दिए|दी|दे\s*दिया|दे\s*दिए|जमा|जम्मा|पेमेंट|भुगतान|वसूली|चुकता|चुका|वापस|मिला|मिले|आया|आए)/u;
+const CORRECTION_RE = /(?:^|\b)(?:nahi|nahin|nhi|no|galat|galti|sorry|maafi|matlab|actually|correction|correct|badal|badlo|change|theek|sahi)\b|(?:kar\s*do|kardo|kar\s*de)\s*$|(?:^|[\s,;])(?:नहीं|नही|गलत|गलती|माफी|माफ़ी|मतलब|सुधार|बदल|बदलो|ठीक|सही)(?=[\s,;.!?।]|$)|(?:कर\s*दो|करदो|कर\s*दे)\s*$/u;
 
-const QUERY_RE = /(?:kitna|kitne|kitni|total|hisaab|hisab|baaki|baki|balance|batao|bata|bolo|bataye|how much|list|kiski|kiska|kaun|sabse|summary|kya\s+hai)/;
+const QUERY_RE = /(?:kitna|kitne|kitni|total|hisaab|hisab|baaki|baki|balance|batao|bata|bolo|bataye|how much|list|kiski|kiska|kaun|sabse|summary|kya\s+hai|कितना|कितने|कितनी|कुल|हिसाब|हिसाब-किताब|बाकी|बैलेंस|बताओ|बता|बोलो|बताइए|किसकी|किसका|कौन|सबसे|सारांश|क्या\s*है)/u;
 
-const LENDING_RE = /(?:\bbyaj\b|\bbyaaj\b|\binterest\b|\bkarz\b|\bkarza\b|\bloan\b|\bemi\b|\binstal+ments?\b|\bcash\s*advance\b|\bfinance\b)/;
-const HEALTH_RE = /(?:\bdawa\b|\bdawai\b|\bdavai\b|\bdose\b|\bdosage\b|\bilaaj\b|\bilaj\b|\bdoctor\b|\btablet\b|\binjection\b|\bbimari\b|\bhealth\b|\bmedical\b|\bprescription\b)/;
-const REMINDER_RE = /(?:reminder|yaad\s*dila|yaad\s*dilao|remind)/;
+const LENDING_RE = /(?:\bbyaj\b|\bbyaaj\b|\binterest\b|\bkarz\b|\bkarza\b|\bloan\b|\bemi\b|\binstal+ments?\b|\bcash\s*advance\b|\bfinance\b|ब्याज|ब्याज़|कर्ज|कर्ज़|लोन|ईएमआई|किस्त|फाइनेंस)/u;
+const HEALTH_RE = /(?:\bdawa\b|\bdawai\b|\bdavai\b|\bdose\b|\bdosage\b|\bilaaj\b|\bilaj\b|\bdoctor\b|\btablet\b|\binjection\b|\bbimari\b|\bhealth\b|\bmedical\b|\bprescription\b|दवा|दवाई|दवाईयाँ|डोज़|इलाज|डॉक्टर|गोली|टैबलेट|इंजेक्शन|बीमारी|सेहत|मेडिकल|पर्चा)/u;
+const REMINDER_RE = /(?:reminder|yaad\s*dila|yaad\s*dilao|remind|रिमाइंडर|याद\s*दिला|याद\s*दिलाओ)/u;
 
-const DATE_TOMORROW_RE = /(?:kal\s*(?:denge|dena|dega|deg|tak|aana|aayenge)|tomorrow|agle\s*din)/;
-const DATE_PARSO_RE = /(?:\bparso\b|\bparson\b|day\s*before\s*yesterday)/;
-const DATE_YESTERDAY_RE = /(?:\bkal\b|\byesterday\b|\bkal\s*ka\b)/;
-const DATE_WEEK_RE = /(?:pichhle\s*hafte|last\s*week|saat\s*din\s*pehle)/;
+const DATE_TOMORROW_RE = /(?:kal\s*(?:denge|dena|dega|deg|tak|aana|aayenge)|tomorrow|agle\s*din|कल\s*(?:देंगे|देना|देगा|दें|तक|आना|आएंगे)|आगले\s*दिन)/u;
+const DATE_PARSO_RE = /(?:\bparso\b|\bparson\b|day\s*before\s*yesterday|परसों|परसो)/u;
+const DATE_YESTERDAY_RE = /(?:\bkal\b|\byesterday\b|\bkal\s*ka\b|(?:^|\s)कल(?:\s|$)|बीता\s*कल)/u;
+const DATE_WEEK_RE = /(?:pichhle\s*hafte|last\s*week|saat\s*din\s*pehle|पिछले\s*हफ्ते|पिछले\s*सप्ताह|सात\s*दिन\s*पहले)/u;
 
 // Words that can never be part of a customer name.
 const NAME_STOPWORDS = new Set([
@@ -49,6 +53,7 @@ const NAME_STOPWORDS = new Set([
   'na', 'nahi', 'nahin', 'nhi', 'no', 'not',
   'rupay', 'rupaye', 'rupees', 'rs', 'rupee', 'rupya', 'paisa', 'paise', '₹',
   'mera', 'meri', 'mujhe', 'uska', 'uski', 'iska', 'iski', 'unka', 'unki',
+  'usse', 'usne', 'isse', 'isne', 'unse', 'unhe', 'unhone', 'mil', 'milti', 'milta',
   'sab', 'sabhi', 'saare', 'saara', 'sari', 'sabka',
   'kiski', 'kiska', 'kisne', 'kaun', 'kaunsa', 'kaunsi', 'kaunse', 'sabse',
   'zyada', 'jyada', 'top', 'list', 'summary', 'outstanding', 'balance',
@@ -56,6 +61,35 @@ const NAME_STOPWORDS = new Set([
   'correction', 'correct', 'galat', 'galti', 'sorry', 'maafi', 'matlab',
   'actually', 'change', 'badal', 'badlo', 'theek', 'sahi',
   'reminder', 'yaad', 'dila', 'dilao', 'bhejo', 'send', 'hisaab-kitaab',
+
+  // Devanagari stopwords. Prisma v3.0 often returns Hindi in native script, so
+  // these must be filtered exactly like their Latin spellings or a transcript
+  // such as "रमेश का ३४० उधार" creates a customer called "का उधार".
+  'का', 'के', 'की', 'को', 'ने', 'से', 'में', 'मैं', 'पर', 'पे', 'तक',
+  'है', 'हैं', 'हा', 'था', 'थे', 'थी', 'हूं', 'हूँ', 'हो', 'हुआ', 'हुए',
+  'गया', 'गई', 'गए', 'गइ',
+  'दिया', 'दिए', 'दी', 'दे', 'दो', 'देना', 'देंगे', 'दीजिए', 'देगा', 'देदो',
+  'लिख', 'लिखो', 'लिखना', 'लिखदो', 'लिखा', 'चढ़ा', 'चढ़ाओ', 'चढ़ाया',
+  'कर', 'करो', 'करदो', 'करके', 'जमा', 'जम्मा',
+  'उधार', 'उधारी', 'क्रेडिट', 'पेमेंट', 'भुगतान', 'वसूली', 'चुकता',
+  'चुका', 'वापस', 'मिला', 'मिले', 'आया', 'आए', 'रिसीव्ड',
+  'आज', 'अज', 'कल', 'परसों', 'परसो', 'अभी', 'सुबह', 'शाम', 'रात', 'दोपहर',
+  'कुल', 'हिसाब', 'हिसाब-किताब', 'बाकी', 'बकाया', 'कितना', 'कितने',
+  'कितनी', 'बताओ', 'बता', 'बोलो', 'बोल', 'बताइए', 'बताईये',
+  'कृपया', 'अरे', 'अर्रे', 'ओए', 'हे', 'नमस्ते', 'नमस्कार',
+  'जी', 'भाई', 'भैया', 'सर', 'मैडम', 'साहब', 'साहिब',
+  'दुकान', 'दुकानदार', 'खाता', 'खाते', 'और', 'फिर', 'तो', 'भी',
+  'न', 'नहीं', 'नही', 'ना',
+  'रुपये', 'रुपया', 'रुपए', 'रूपये', 'पैसा', 'पैसे', 'रु',
+  'मेरा', 'मेरी', 'मुझे', 'उसका', 'उसकी', 'इसका', 'इसकी', 'उनका', 'उनकी',
+  'उसने', 'इसने', 'उन्होंने', 'उससे', 'इससे', 'उनसे', 'मिल', 'मिलता', 'मिलती',
+  'सब', 'सभी', 'सारे', 'सारा', 'सारी', 'सबका',
+  'किसकी', 'किसका', 'किसने', 'कौन', 'कौनसा', 'कौनसी', 'कौनसे', 'सबसे',
+  'ज़्यादा', 'ज्यादा', 'टॉप', 'सूची', 'सारांश', 'बैलेंस',
+  'एंट्री', 'पिछली', 'पिछला', 'आखिरी', 'लास्ट', 'नया', 'नई',
+  'सुधार', 'गलत', 'गलती', 'माफी', 'माफ़ी', 'मतलब',
+  'बदल', 'बदलो', 'ठीक', 'सही',
+  'रिमाइंडर', 'याद', 'दिला', 'दिलाओ', 'भेजो', 'भेज',
 ]);
 
 function titleCaseAscii(name) {
@@ -68,7 +102,8 @@ function titleCaseAscii(name) {
 /** Masked text -> clean customer name ('' when none). */
 export function extractCustomer(maskedText) {
   const tokens = (maskedText || '')
-    .replace(/[.,!?;:"'`()\[\]{}/\\]/g, ' ')
+    .replace(/[.,!?;:"'`()\[\]{}/\\|।॥]/g, ' ')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
     .split(/\s+/)
     .filter(Boolean);
 
@@ -127,35 +162,38 @@ function splitSegments(text) {
 }
 
 function detectQuery(text, customer) {
-  if (/(?:sabse\s*(?:zyada|jyada)|top\s*(?:customer|debtor|grahak)|highest|kaun\s*sabse|kiski\s*sabse)/.test(text)) {
+  if (/(?:sabse\s*(?:zyada|jyada)|top\s*(?:customer|debtor|grahak)|highest|kaun\s*sabse|kiski\s*sabse|सबसे\s*(?:ज़्यादा|ज्यादा)|कौन\s*सबसे|किसकी\s*सबसे)/u.test(text)) {
     return { kind: 'top_debtor', customer: null };
   }
-  if (/(?:kitne|how\s*many)\s*(?:customer|grahak|log|aadmi|party)/.test(text) || /(?:customer|grahak)\s*(?:kitne|count)/.test(text)) {
+  if (/(?:kitne|how\s*many)\s*(?:customer|grahak|log|aadmi|party)/.test(text) || /(?:customer|grahak)\s*(?:kitne|count)/.test(text) ||
+      /(?:कितने|कितनी)\s*(?:ग्राहक|लोग|आदमी|पार्टी)|(?:ग्राहक|लोग)\s*(?:कितने|कितनी)/u.test(text)) {
     return { kind: 'customer_count', customer: null };
   }
-  if (/(?:list|sabhi\s*grahak|saare\s*grahak|sabka\s*hisaab)/.test(text)) {
+  if (/(?:list|sabhi\s*grahak|saare\s*grahak|sabka\s*hisaab|सूची|सभी\s*ग्राहक|सारे\s*ग्राहक|सबका\s*हिसाब)/u.test(text)) {
     return { kind: 'customer_list', customer: null };
   }
-  if (/(?:aaj|today)/.test(text)) {
-    if (/(?:jama|jamaa|payment|vasooli|wasooli|aaya|aaye|mila|mile)/.test(text)) {
+  if (/(?:aaj|today|आज)/u.test(text)) {
+    if (/(?:jama|jamaa|payment|vasooli|wasooli|aaya|aaye|mila|mile|जमा|जम्मा|पेमेंट|वसूली|आया|आए|मिला|मिले)/u.test(text)) {
       return { kind: 'today_payment', customer: null };
     }
-    if (/(?:udhaa?r|credit)/.test(text)) return { kind: 'today_credit', customer: null };
+    if (/(?:udhaa?r|credit|उधा[रर]|क्रेडिट)/u.test(text)) return { kind: 'today_credit', customer: null };
     return { kind: 'today_summary', customer: null };
   }
   if (/(?:kul|total|sabka|outstanding)[\s\S]*(?:baaki|baki|udhaa?r)/.test(text) ||
-      /(?:total|kul)\s*(?:outstanding|baaki|baki)/.test(text)) {
+      /(?:total|kul)\s*(?:outstanding|baaki|baki)/.test(text) ||
+      /(?:कुल|टोटल)[\s\S]*(?:बाकी|बकाया|उधा[रर])|(?:कुल|टोटल)\s*(?:बाकी|बकाया)/u.test(text)) {
     return { kind: 'total_outstanding', customer: null };
   }
-  if (/(?:aakhri|last|pichhli|recent)\s*(?:entry|transaction|len-?den)/.test(text)) {
+  if (/(?:aakhri|last|pichhli|recent)\s*(?:entry|transaction|len-?den)/.test(text) ||
+      /(?:आखिरी|पिछली|हाल\s*की)\s*(?:एंट्री|लेन-?देन|ट्रांजैक्शन)/u.test(text)) {
     return { kind: 'last_entry', customer: customer || null };
   }
   // A bare name ("ok", "hmm") is not a balance question; require a question
   // word or an explicit possessive so filler never becomes a customer lookup.
-  if (customer && (QUERY_RE.test(text) || /\b(?:ka|ki|ke)\b/.test(text))) {
+  if (customer && (QUERY_RE.test(text) || /\b(?:ka|ki|ke)\b/.test(text) || /(?:^|\s)(?:का|की|के)(?:\s|$)/u.test(text))) {
     return { kind: 'customer_balance', customer };
   }
-  if (/(?:hisaab|hisab|summary|total)/.test(text)) return { kind: 'today_summary', customer: null };
+  if (/(?:hisaab|hisab|summary|total|हिसाब|सारांश|कुल|टोटल)/u.test(text)) return { kind: 'today_summary', customer: null };
   if (QUERY_RE.test(text)) return { kind: 'customer_balance', customer: null };
   return null;
 }

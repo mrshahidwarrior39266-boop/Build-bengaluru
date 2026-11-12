@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1F5136" />
+  <meta name="description" content="Bolti Bahi — apni dukaan ka khata, bolkar rakhein. Google se sign in karein." />
+  <title>Sign in · Bolti Bahi</title>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/icons/favicon.png" sizes="any" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <style>
+    :root {
+      --brand: #1F5136;
+      --brand-dark: #143923;
+      --brand-tint: #EAF3EC;
+      --paper: #FAF7F2;
+      --card: #FFFFFF;
+      --ink: #1B1A17;
+      --ink-soft: #6B6459;
+      --line: #E7E0D4;
+      --danger: #B3261E;
+      color-scheme: light;
+    }
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 15% 10%, rgba(31, 81, 54, 0.1), transparent 32rem),
+        radial-gradient(circle at 90% 90%, rgba(201, 161, 90, 0.16), transparent 30rem),
+        var(--paper);
+      color: var(--ink);
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Noto Sans Devanagari", sans-serif;
+      display: grid;
+      place-items: center;
+      padding: 22px;
+    }
+    .card {
+      width: 100%;
+      max-width: 920px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 26px;
+      box-shadow: 0 24px 70px rgba(20, 57, 35, 0.14);
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: 1.05fr 1fr;
+    }
+    .pitch {
+      background:
+        linear-gradient(150deg, rgba(255, 255, 255, 0.08), transparent 55%),
+        var(--brand);
+      color: #fff;
+      padding: 40px 36px;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+      position: relative;
+      overflow: hidden;
+    }
+    .pitch::after {
+      content: "";
+      position: absolute;
+      width: 240px;
+      height: 240px;
+      right: -90px;
+      bottom: -100px;
+      border-radius: 50%;
+      border: 34px solid rgba(255, 255, 255, 0.07);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 1.28rem;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+    }
+    .brand-mark {
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.14);
+      display: grid;
+      place-items: center;
+      font-size: 1.35rem;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+    .pitch h1 {
+      margin: 0;
+      font-size: clamp(1.7rem, 4vw, 2.35rem);
+      line-height: 1.12;
+      letter-spacing: -0.03em;
+      font-weight: 850;
+    }
+    .pitch h1 span { color: #F4D58D; }
+    .pitch p {
+      margin: 0;
+      color: rgba(255, 255, 255, 0.78);
+      font-size: 0.92rem;
+      line-height: 1.6;
+      max-width: 34ch;
+    }
+    .points {
+      list-style: none;
+      margin: auto 0 0;
+      padding: 0;
+      display: grid;
+      gap: 12px;
+      position: relative;
+      z-index: 1;
+    }
+    .points li {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      font-size: 0.82rem;
+      line-height: 1.45;
+      color: rgba(255, 255, 255, 0.9);
+    }
+    .points b {
+      flex: 0 0 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.16);
+      display: grid;
+      place-items: center;
+      font-size: 0.72rem;
+      color: #F4D58D;
+    }
+    .signin {
+      padding: 46px 38px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 18px;
+    }
+    .eyebrow {
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--brand);
+    }
+    .signin h2 {
+      margin: 0;
+      font-size: 1.45rem;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+    .signin p {
+      margin: 0;
+      color: var(--ink-soft);
+      font-size: 0.86rem;
+      line-height: 1.6;
+    }
+    .google-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      width: 100%;
+      min-height: 52px;
+      border: 1px solid #DADCE0;
+      border-radius: 13px;
+      background: #fff;
+      color: #1F1F1F;
+      font: inherit;
+      font-size: 0.95rem;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+      transition: box-shadow 0.16s ease, transform 0.16s ease, border-color 0.16s ease;
+    }
+    .google-btn:hover { box-shadow: 0 3px 14px rgba(0, 0, 0, 0.13); transform: translateY(-1px); }
+    .google-btn:active { transform: none; }
+    .google-btn:focus-visible { outline: 3px solid rgba(31, 81, 54, 0.28); outline-offset: 2px; }
+    .google-btn svg { flex: 0 0 auto; }
+    .fineprint {
+      font-size: 0.72rem;
+      color: var(--ink-soft);
+      line-height: 1.55;
+      margin: 0;
+    }
+    .fineprint a { color: var(--brand); font-weight: 700; text-decoration: none; }
+    .fineprint a:hover { text-decoration: underline; }
+    .notice {
+      display: none;
+      border-radius: 12px;
+      padding: 11px 13px;
+      font-size: 0.78rem;
+      line-height: 1.5;
+      border: 1px solid #F2C8C3;
+      background: #FDF1F0;
+      color: var(--danger);
+    }
+    .notice.is-visible { display: block; }
+    .notice.is-info {
+      border-color: #CBE0D2;
+      background: var(--brand-tint);
+      color: var(--brand-dark);
+    }
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #A79E90;
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: 800;
+    }
+    .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+    .demo-link {
+      text-align: center;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--brand);
+      text-decoration: none;
+      padding: 9px;
+      border-radius: 10px;
+    }
+    .demo-link:hover { background: var(--brand-tint); }
+    .foot {
+      text-align: center;
+      font-size: 0.7rem;
+      color: var(--ink-soft);
+      line-height: 1.5;
+    }
+    @media (max-width: 760px) {
+      body { padding: 0; place-items: stretch; }
+      .card { grid-template-columns: 1fr; border-radius: 0; border: 0; min-height: 100dvh; box-shadow: none; }
+      .pitch { padding: 30px 22px 26px; gap: 16px; }
+      .pitch p { max-width: none; }
+      .points { margin-top: 6px; grid-template-columns: 1fr; }
+      .signin { padding: 30px 22px calc(30px + env(safe-area-inset-bottom, 0px)); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <section class="pitch" aria-label="Bolti Bahi ke baare mein">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">🎙️</span>
+        <span>Bolti Bahi</span>
+      </div>
+      <h1>Apni dukaan ka hisaab, <span>bolkar</span> rakhein.</h1>
+      <p>
+        Bolo “Ramesh ka 340 udhaar” — khata khud likh jayega. Har dukaan ka
+        hisaab alag, har entry surakshit.
+      </p>
+      <ul class="points">
+        <li><b>✓</b><span>Hindi, Hinglish aur Indic bhasha mein bolein</span></li>
+        <li><b>✓</b><span>Grahak, udhaar, jama aur tareekh — sab ek hi vaaky mein</span></li>
+        <li><b>✓</b><span>Har shop ka apna alag khata, doosri dukaan ka data nahi dikhta</span></li>
+      </ul>
+    </section>
+
+    <section class="signin" aria-label="Sign in">
+      <div class="eyebrow">Dukaan account</div>
+      <h2>Google se sign in karein</h2>
+      <p>
+        Aapke Google account se ek alag dukaan khate banega. Pehli baar
+        sign in karne par hum dukaan ka naam poochenge.
+      </p>
+
+      <div class="notice" id="auth-notice" role="alert" aria-live="polite"></div>
+
+      <a class="google-btn" href="/auth/google" id="google-btn">
+        <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        </svg>
+        <span id="google-btn-label">Google se sign in karein</span>
+      </a>
+
+      <div class="divider">ya</div>
+      <a class="demo-link" href="/" id="demo-link" hidden>Bina sign-in app kholein (demo)</a>
+
+      <p class="fineprint">
+        Sign in karke aap hamari <a href="/login#privacy">data suraksha</a> sharten
+        maante hain. Hum aapki Google password kabhi nahi dekhte — sirf naam aur
+        email aata hai. <a href="/login#privacy">Privacy</a>
+      </p>
+      <p class="foot">Made for Bharat ki dukaanon ke liye 🇮🇳</p>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      const params = new URLSearchParams(location.search);
+      const notice = document.getElementById('auth-notice');
+      const auth = params.get('auth');
+      const error = params.get('error');
+
+      function show(text, info) {
+        notice.textContent = text;
+        notice.className = 'notice is-visible' + (info ? ' is-info' : '');
+      }
+
+      if (auth === 'disabled') {
+        show('Is server par Google sign-in configured nahi hai. Demo ke liye neeche app kholein.', true);
+        document.getElementById('google-btn').hidden = true;
+        const demo = document.getElementById('demo-link');
+        demo.hidden = false;
+        demo.href = '/';
+      } else if (auth === 'error' || error) {
+        show(error === 'state'
+          ? 'Sign-in link purana ho gaya. Dobara Google button dabayein.'
+          : 'Google sign-in pura nahi hua. Dobara koshish karein.');
+      }
+
+      // If a session already exists, skip the screen (useful after restoring a tab).
+      fetch('/api/session', { cache: 'no-store' })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((session) => {
+          if (session && session.authRequired && session.authenticated) location.replace('/');
+        })
+        .catch(function () { /* offline: leave the button visible */ });
+    })();
+  </script>
+</body>
+</html>

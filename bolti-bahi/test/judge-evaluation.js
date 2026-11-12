@@ -25,15 +25,23 @@ const NOW = new Date(2026, 10, 10, 12, 0, 0);
 const TODAY = '2026-11-10';
 
 const dirs = [];
+const ledgers = [];
 function setup() {
   const dir = mkdtempSync(join(tmpdir(), 'khata-judge-'));
   dirs.push(dir);
   const ledger = new LedgerDB(join(dir, 'khata.db'));
+  ledgers.push(ledger);
   const agent = new KhataAgent({ ledger, now: () => NOW });
   return { dir, ledger, agent, dbPath: join(dir, 'khata.db') };
 }
 function teardown() {
-  while (dirs.length) rmSync(dirs.pop(), { recursive: true, force: true });
+  for (const ledger of ledgers) {
+    try { ledger.close(); } catch { /* already closed */ }
+  }
+  ledgers.length = 0;
+  while (dirs.length) {
+    rmSync(dirs.pop(), { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
 }
 
 const entriesOf = (result) => result.events.filter((e) => e.type === 'entry').map((e) => e.entry);
@@ -122,7 +130,9 @@ gate(
   const after = readFileSync(dbPath, 'latin1');
   gate('Retention purge removes transcript text', removed >= 1 && !after.includes(marker));
   gate('Purge keeps the ledger arithmetic intact', ledger.getCustomerBalance('Ramesh').balance === 340);
-  rmSync(dir, { recursive: true, force: true });
+  ledger.close();
+  ledgers.splice(ledgers.indexOf(ledger), 1);
+  rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   dirs.splice(dirs.indexOf(dir), 1);
 }
 

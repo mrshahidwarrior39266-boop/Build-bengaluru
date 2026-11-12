@@ -43,7 +43,10 @@ export class GnaniSTT {
       sampleRate = 16000,
       keyterms = [],
       topic,
+      previousText,
+      speakerNames = [],
       idleTimeoutSec,
+      vad = {},
     } = options;
 
     if (!this.apiKey) throw new Error('GNANI_API_KEY is not configured');
@@ -68,7 +71,24 @@ export class GnaniSTT {
     const terms = [...SHOP_KEYTERMS, ...keyterms].slice(0, 200);
     if (terms.length > 0) headers.keyterms = asciiJsonArray(terms);
     if (topic) headers.topic = String(topic);
+    if (previousText) headers.previous_text = String(previousText).slice(0, 500);
+    if (speakerNames.length > 0) headers.speaker_names = asciiJsonArray(speakerNames.slice(0, 4));
     if (idleTimeoutSec) headers['x-idle-timeout-sec'] = String(idleTimeoutSec);
+
+    // VAD tuning is fixed for the life of the connection. The defaults are
+    // tuned for a quiet headset; a kirana counter is not one, so the server
+    // passes a slightly stricter gate here to reject banging, fans and other
+    // shop noise without losing normal speech.
+    const vadHeaders = {
+      'x-vad-threshold': '0.65',
+      'x-min-speech-ms': '200',
+      'x-min-silence-ms': '500',
+      'x-min-segment-ms': '200',
+    };
+    for (const [key, value] of Object.entries(vad)) {
+      if (value !== undefined && value !== null) vadHeaders[key] = String(value);
+    }
+    Object.assign(headers, vadHeaders);
 
     return new Promise((resolve, reject) => {
       let settled = false;

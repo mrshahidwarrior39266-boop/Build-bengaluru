@@ -219,7 +219,12 @@ try {
   if (serverLog) console.error(serverLog.slice(-1500));
 } finally {
   child.kill('SIGTERM');
-  rmSync(dir, { recursive: true, force: true });
+  await new Promise((resolve) => {
+    if (child.exitCode !== null) return resolve();
+    const timer = setTimeout(() => { try { child.kill('SIGKILL'); } catch { /* gone */ } resolve(); }, 4000);
+    child.once('exit', () => { clearTimeout(timer); resolve(); });
+  });
+  rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 150 });
 }
 
 console.log(`\n${failed === 0 ? '✅' : '❌'} API tests: ${passed} passed, ${failed} failed\n`);

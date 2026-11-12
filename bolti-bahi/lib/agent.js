@@ -7,7 +7,7 @@
  */
 
 import { parseIntent, extractCustomer } from './intent-parser.js';
-import { LlmBrain } from './llm-brain.js';
+import { LlmBrain, bestCustomerMatch } from './llm-brain.js';
 import { normalizeSpokenText } from './hindi-numbers.js';
 import { safeSpeech } from './speech-guard.js';
 import { buildReminder } from './reminders.js';
@@ -47,30 +47,118 @@ export class KhataAgent {
 
   /**
    * Entry point used by the server. It is identical to handle() unless an LLM
-   * fallback is configured AND the deterministic parser could not read the
-   * sentence; even then the model's proposal is re-parsed and validated by the
-   * local parser before any row is written.
+   * brain is configured AND the deterministic parser is unsure. The model only
+   * ever returns a plan; that plan is turned into a canonical shop phrase and
+   * re-parsed, validated and written through the normal ledger path.
    */
   async handleAsync(rawText) {
     const text = String(rawText || '').trim();
     if (!text || !this.brain || !this.brain.enabled || this.pending) return this.handle(text);
 
-    const deterministic = parseIntent(text, { now: this.now() });
-    if (deterministic.intent !== 'unknown') return this.handle(text);
+    const now = this.now();
+    const deterministic = parseIntent(text, { now });
+    if (!this._needsBrain(deterministic)) return this.handle(text);
 
-    const hint = await this.brain.parse(text, {
-      customers: this.ledger.getCustomerSummary().slice(0, 40).map((row) => row.customer_name),
-    });
-    if (!hint) return this.handle(text);
+    const customers = this.ledger.getCustomerSummary().slice(0, 40).map((row) => row.customer_name);
+    const last = this.ledger.getLastEntry ? this.ledger.getLastEntry() : null;
+    const context = {
+      customers,
+      today: localYmd(now),
+      lastEntry: last ? {
+        customerName: last.customerName,
+        amount: last.amount,
+        type: last.type,
+        date: last.date,
+      } : null,
+    };
 
-    // Re-enter the normal pipeline with a canonical phrase so name resolution,
-    // ambiguity questions, validation and audit notes all still apply.
-    const phrase = hint.type === 'credit'
-      ? `${hint.customerName} ka ${hint.amount} udhaar`
-      : `${hint.customerName} se ${hint.amount} jama`;
+    let plan = null;
+    if (typeof this.brain.understand === 'function') {
+      plan = await this.brain.understand(text, context);
+    } else if (typeof this.brain.parse === 'function') {
+      // Older/simpler brain implementations only answer the entry question.
+      const hint = await this.brain.parse(text, { customers });
+      if (hint) {
+        plan = {
+          action: 'entry',
+          customerName: hint.customerName,
+          entries: [{ amount: hint.amount, type: hint.type }],
+          query: null,
+          confidence: hint.confidence,
+        };
+      }
+    }
+    if (!plan) return this.handle(text);
+
+    const repairedName = plan.customerName
+      ? (bestCustomerMatch(plan.customerName, customers) || plan.customerName)
+      : '';
+    const phrase = this._canonicalPhrase(plan, repairedName);
+    if (!phrase) return this.handle(text);
+
     const result = this.handle(phrase);
-    if (!result.events.some((event) => event.type === 'entry')) return this.handle(text);
-    return { ...result, llm: { used: true, model: this.brain.model, confidence: hint.confidence } };
+    const wroteEntry = result.events.some((event) => event.type === 'entry');
+    const legitimateClarification = result.intent === 'clarify' || plan.action === 'query';
+    if (!wroteEntry && !legitimateClarification) return this.handle(text);
+
+    return {
+      ...result,
+      llm: {
+        used: true,
+        action: plan.action,
+        model: this.brain.model,
+        confidence: plan.confidence,
+        nameRepaired: Boolean(plan.customerName && repairedName !== plan.customerName),
+      },
+    };
+  }
+
+  /**
+   * The LLM is a second reader for uncertainty, never a shortcut around the
+   * deterministic path. Readable entries with a name and direction never reach
+   * the network.
+   */
+  _needsBrain(parsed) {
+    if (!parsed) return false;
+    if (parsed.intent === 'unknown' || parsed.intent === 'clarify_direction') return true;
+    if ((parsed.intent === 'entry' || parsed.intent === 'entries') && !parsed.customer) return true;
+    if (parsed.intent === 'query' && parsed.query?.kind === 'customer_balance' && !parsed.customer) return true;
+    return false;
+  }
+
+  /** Turn a validated model plan into a phrase the deterministic parser owns. */
+  _canonicalPhrase(plan, customerName) {
+    if (plan.action === 'query') {
+      switch (plan.query) {
+        case 'customer_balance': return customerName ? `${customerName} ka kitna baaki hai` : '';
+        case 'today_credit': return 'aaj kitna udhaar gaya';
+        case 'today_payment': return 'aaj kitna jama hua';
+        case 'today_summary': return 'aaj ka hisaab';
+        case 'top_debtor': return 'kiski sabse zyada baaki hai';
+        case 'total_outstanding': return 'kul kitna baaki hai';
+        case 'customer_count': return 'kitne grahak hain';
+        case 'customer_list': return 'sabhi grahak ki list';
+        case 'last_entry': return customerName ? `${customerName} ki aakhri entry` : 'aakhri entry';
+        default: return '';
+      }
+    }
+
+    if (plan.action === 'correction') {
+      const amount = plan.entries?.[0]?.amount;
+      if (!amount) return '';
+      return customerName ? `${customerName} nahi, ${amount}` : `nahi, ${amount}`;
+    }
+
+    if (plan.action === 'entry') {
+      if (!customerName || !plan.entries?.length) return '';
+      return plan.entries
+        .map((entry) => (entry.type === 'credit'
+          ? `${customerName} ka ${entry.amount} udhaar`
+          : `${customerName} se ${entry.amount} jama`))
+        .join(', ');
+    }
+
+    return '';
   }
 
   get disclosureText() {

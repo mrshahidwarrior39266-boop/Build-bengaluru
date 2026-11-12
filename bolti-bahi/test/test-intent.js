@@ -405,6 +405,52 @@ console.log('\n🧠 PARSER EDGE CASES\n');
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+console.log('\n🇮🇳 DEVANAGARI STT OUTPUT\n');
+// ─────────────────────────────────────────────────────────────────────────────
+
+{
+  // Prisma returns Hindi in native script for a hi-IN session. The parser must
+  // understand the same sentence in either script.
+  const parsed = parseIntent('रमेश का ३४० उधार', { now: NOW });
+  eq(parsed.intent, 'entry', 'Devanagari credit is an entry');
+  eq(parsed.customer, 'रमेश', 'Devanagari customer name is kept');
+  eq(parsed.entries?.[0]?.amount, 340, 'Devanagari digits become 340');
+  eq(parsed.entries?.[0]?.type, 'credit', 'Devanagari "उधार" is credit');
+}
+
+{
+  const parsed = parseIntent('रमेश का 340 उधार, कल 200 दिया था', { now: NOW });
+  eq(parsed.intent, 'entries', 'Devanagari compound sentence is understood');
+  eq(parsed.entries?.length, 2, 'Devanagari compound has two clauses');
+  eq(parsed.entries?.[1]?.type, 'payment', 'Devanagari "दिया" is payment');
+  eq(parsed.entries?.[1]?.date, YESTERDAY, 'Devanagari "कल" is yesterday');
+}
+
+{
+  eq(parseIntent('आज कितना उधार गया', { now: NOW }).query?.kind, 'today_credit', 'Devanagari today-credit question');
+  eq(parseIntent('रमेश का कितना बाकी है', { now: NOW }).query?.kind, 'customer_balance', 'Devanagari balance question');
+  eq(parseIntent('नहीं, 430', { now: NOW }).intent, 'correct', 'Devanagari correction is understood');
+}
+
+{
+  // This exact transcript came from a live Prisma session on the deployed app.
+  // It used to create a junk customer named "का Udhaar।".
+  const parsed = parseIntent('का three hundred forty udhaar।', { now: NOW });
+  eq(parsed.customer, '', 'Danda and Devanagari stopwords leave no junk name');
+  eq(parsed.intent, 'entry', 'Amount and direction still parse');
+
+  const { agent, cleanup } = setup();
+  const r = agent.handle('का three hundred forty udhaar।');
+  eq(entries(r).length, 0, 'No row is written without a real customer name');
+  eq(r.intent, 'clarify', 'The agent asks for the missing name instead');
+  cleanup();
+}
+
+{
+  eq(parseIntent('रुपये Udhaar।', { now: NOW }).intent, 'unknown', 'Currency/direction words alone create no entry');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 console.log('\n' + '═'.repeat(52));
 console.log(`📊 INTENT TESTS: ${passed}/${passed + failed} passed, ${failed} failed`);
 console.log('═'.repeat(52));

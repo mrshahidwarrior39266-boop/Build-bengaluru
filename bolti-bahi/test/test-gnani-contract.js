@@ -125,7 +125,15 @@ console.log('\nPrisma v3.0 STT wire contract');
   });
 
   const stt = new GnaniSTT('unit-test-key', { url: `ws://127.0.0.1:${port}/stt/v3/stream` });
-  const ws = await stt.connect({ languageCode: 'hi-IN,en-IN', format: 'codemix', sampleRate: 16000 });
+  const ws = await stt.connect({
+    languageCode: 'hi-IN,en-IN',
+    format: 'codemix',
+    sampleRate: 16000,
+    keyterms: ['Ramesh', 'Sunita'],
+    topic: 'kirana khata',
+    previousText: 'Sunita ka 100 udhaar',
+    vad: { 'x-vad-threshold': '0.7' },
+  });
 
   check('sends the key only in the x-api-key-id header', upgradeHeaders['x-api-key-id'] === 'unit-test-key');
   // Streaming takes exactly one locale; a comma list must collapse to the first
@@ -137,10 +145,18 @@ console.log('\nPrisma v3.0 STT wire contract');
   check('no legacy lang_code header', upgradeHeaders.lang_code === undefined);
   check('no legacy x-model header', upgradeHeaders['x-model'] === undefined);
 
+  eq('topic gives Prisma shop context', upgradeHeaders.topic, 'kirana khata');
+  eq('previous_text carries the last turn', upgradeHeaders.previous_text, 'Sunita ka 100 udhaar');
+  eq('shop-noise VAD threshold', upgradeHeaders['x-vad-threshold'], '0.7');
+  eq('VAD silence window', upgradeHeaders['x-min-silence-ms'], '500');
+  eq('VAD minimum speech', upgradeHeaders['x-min-speech-ms'], '200');
+  eq('VAD minimum segment', upgradeHeaders['x-min-segment-ms'], '200');
+
   let keyterms = [];
   try { keyterms = JSON.parse(upgradeHeaders.keyterms); } catch { /* leave empty */ }
   check('keyterms is a JSON array', Array.isArray(keyterms) && keyterms.length > 0);
   check('keyterms include shop vocabulary', keyterms.includes('udhaar'));
+  check('keyterms include known customer names', keyterms.includes('Ramesh') && keyterms.includes('Sunita'));
 
   const events = [];
   ws.on('message', (raw) => {

@@ -159,6 +159,21 @@ try {
   eq(anonymous.status, 401, 'Ledger requires a session');
   eq(anonymous.body.error, 'login_required', 'Anonymous request says login_required');
 
+  // 1b. A signed-out browser gets a real Google login page, not the app shell.
+  const loginPage = await fetch(`${base}/login`);
+  const loginHtml = await loginPage.text();
+  eq(loginPage.status, 200, 'Login page is reachable');
+  ok(/Google se sign in karein/.test(loginHtml), 'Login page shows the Google button');
+  ok(/href="\/auth\/google"/.test(loginHtml), 'Login page links to the OAuth start route');
+  ok(!/id="bb-store-pill"/.test(loginHtml), 'Login page does not leak the app shell');
+
+  const root = await fetch(`${base}/`);
+  const rootHtml = await root.text();
+  eq(root.status, 200, 'Signed-out root responds');
+  ok(/Google se sign in karein/.test(rootHtml), 'Signed-out root serves the login page');
+  ok(!/id="bb-store-pill"/.test(rootHtml), 'Signed-out root does not serve the ledger app');
+  eq((await json('/api/session')).body.loginUrl, '/login', 'Session advertises the login page');
+
   // 2. The redirect goes to Google with a state nonce.
   const first = await signIn();
   eq(first.start.status, 302, 'Sign-in redirects');
@@ -181,6 +196,11 @@ try {
   eq(session1.body.authenticated, true, 'Session is authenticated');
   eq(session1.body.store.needsName, true, 'New shop needs a name');
   eq(session1.body.owner.email, 'google-1@example.com', 'Owner email is stored');
+
+  const signedInRoot = await fetch(`${base}/`, { headers: { Cookie: first.cookie } });
+  const signedInHtml = await signedInRoot.text();
+  ok(/id="bb-store-pill"/.test(signedInHtml), 'Signed-in root serves the ledger app');
+  ok(!/<title>Sign in · Bolti Bahi<\/title>/.test(signedInHtml), 'Signed-in root skips the login page');
 
   eq((await json('/api/store', {
     method: 'POST',
@@ -253,8 +273,13 @@ try {
   if (serverLog) console.error(serverLog.slice(-1200));
 } finally {
   child.kill('SIGTERM');
-  google.close();
-  rmSync(dir, { recursive: true, force: true });
+  await new Promise((resolve) => {
+    if (child.exitCode !== null) return resolve();
+    const timer = setTimeout(() => { try { child.kill('SIGKILL'); } catch { /* gone */ } resolve(); }, 4000);
+    child.once('exit', () => { clearTimeout(timer); resolve(); });
+  });
+  await new Promise((resolve) => google.close(resolve));
+  rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 150 });
 }
 
 console.log(`\n${failed === 0 ? '✅' : '❌'} Store accounts: ${passed} passed, ${failed} failed\n`);

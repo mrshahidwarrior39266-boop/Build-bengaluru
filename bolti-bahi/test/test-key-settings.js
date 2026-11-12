@@ -110,7 +110,11 @@ try {
   check('save response never echoes the key', !JSON.stringify(saved.body).includes(FAKE_KEY));
 
   check('key file is written', existsSync(keyPath));
-  check('key file is owner-only (0600)', existsSync(keyPath) && (statSync(keyPath).mode & 0o777) === 0o600, existsSync(keyPath) ? (statSync(keyPath).mode & 0o777).toString(8) : 'missing');
+  if (process.platform === 'win32') {
+    check('key file exists (POSIX 0600 is not applicable on Windows)', existsSync(keyPath), 'missing');
+  } else {
+    check('key file is owner-only (0600)', existsSync(keyPath) && (statSync(keyPath).mode & 0o777) === 0o600, existsSync(keyPath) ? (statSync(keyPath).mode & 0o777).toString(8) : 'missing');
+  }
   check('key file holds the key', existsSync(keyPath) && readFileSync(keyPath, 'utf8').trim() === FAKE_KEY);
 
   const afterSave = await json('/api/settings');

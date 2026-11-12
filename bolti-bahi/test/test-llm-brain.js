@@ -12,7 +12,7 @@ import { createServer } from 'node:http';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { LlmBrain } from '../lib/llm-brain.js';
+import { LlmBrain, bestCustomerMatch } from '../lib/llm-brain.js';
 import { KhataAgent } from '../lib/agent.js';
 import { LedgerDB } from '../lib/ledger-db.js';
 
@@ -149,7 +149,119 @@ try {
   eq(entry?.entry?.amount, 340, 'Model hint amount is written once');
   eq(unknown.llm?.used, true, 'Result records that the fallback was used');
 
-  // 6. Without a brain the same sentence stays unknown: nothing is invented.
+  // 6. Assist mode: the model is consulted for a missing slot, but its plan is
+  // still grounded, validated and written by the deterministic pipeline.
+  const answer = (plan) => ({
+    enabled: true,
+    model: 'stub-model',
+    calls: 0,
+    plan,
+    async understand() {
+      this.calls += 1;
+      return this.plan;
+    },
+  });
+
+  // 6a. Missing customer: "340 udhaar" is a real entry with no name.
+  const nameBrain = answer({
+    action: 'entry',
+    customerName: 'Neha',
+    entries: [{ amount: 340, type: 'credit' }],
+    query: null,
+    confidence: 0.9,
+  });
+  const nameAgent = new KhataAgent({ ledger, brain: nameBrain, now: () => new Date('2026-11-11T10:00:00') });
+  const noName = await nameAgent.handleAsync('340 udhaar');
+  eq(nameBrain.calls, 1, 'Model is asked when the customer name is missing');
+  eq(noName.events.find((e) => e.type === 'entry')?.entry?.customerName, 'Neha', 'Missing name is filled from the plan');
+  eq(noName.llm?.action, 'entry', 'Assist result records the action');
+
+  // 6b. Missing direction: "Neha 340" needs credit vs payment.
+  const dirBrain = answer({
+    action: 'entry',
+    customerName: 'Neha',
+    entries: [{ amount: 340, type: 'credit' }],
+    query: null,
+    confidence: 0.9,
+  });
+  const dirAgent = new KhataAgent({ ledger, brain: dirBrain, now: () => new Date('2026-11-11T10:00:00') });
+  const noDir = await dirAgent.handleAsync('Neha 340');
+  eq(dirBrain.calls, 1, 'Model is asked when the direction is missing');
+  eq(noDir.events.find((e) => e.type === 'entry')?.entry?.type, 'credit', 'Missing direction is filled from the plan');
+
+  // 6c. A question with no name is answered through the same path.
+  const queryBrain = answer({
+    action: 'query',
+    customerName: 'Neha',
+    entries: [],
+    query: 'customer_balance',
+    confidence: 0.9,
+  });
+  const queryAgent = new KhataAgent({ ledger, brain: queryBrain, now: () => new Date('2026-11-11T10:00:00') });
+  const asked = await queryAgent.handleAsync('uska kitna baaki hai');
+  eq(queryBrain.calls, 1, 'Model is asked for a nameless balance question');
+  eq(asked.intent, 'query', 'Query plan returns a query result');
+  eq(asked.events.find((e) => e.type === 'query')?.customer, 'Neha', 'Query plan resolves the customer');
+
+  // 6d. A misheard known name is repaired, not duplicated as a new customer.
+  ledger.addEntry({ customerName: 'Ramesh', amount: 50, type: 'credit' });
+  const repairedBrain = answer({
+    action: 'entry',
+    customerName: 'Rameesh',
+    entries: [{ amount: 100, type: 'credit' }],
+    query: null,
+    confidence: 0.9,
+  });
+  const repairedAgent = new KhataAgent({ ledger, brain: repairedBrain, now: () => new Date('2026-11-11T10:00:00') });
+  const repaired = await repairedAgent.handleAsync('Rameesh 100');
+  eq(repaired.events.find((e) => e.type === 'entry')?.entry?.customerName, 'Ramesh', 'Misheard name maps to the known customer');
+  eq(repaired.llm?.nameRepaired, true, 'Result records that the name was repaired');
+
+  // 6e. One sentence can contain two clauses, in the spoken order.
+  const multiBrain = answer({
+    action: 'entry',
+    customerName: 'Neha',
+    entries: [
+      { amount: 200, type: 'credit' },
+      { amount: 50, type: 'payment' },
+    ],
+    query: null,
+    confidence: 0.9,
+  });
+  const multiAgent = new KhataAgent({ ledger, brain: multiBrain, now: () => new Date('2026-11-11T10:00:00') });
+  const multi = await multiAgent.handleAsync('Neha do sau pachaas');
+  const multiEntries = multi.events.filter((e) => e.type === 'entry').map((e) => e.entry);
+  eq(multiEntries.length, 2, 'Two clauses create two entries');
+  eq(multiEntries[0]?.type, 'credit', 'First clause keeps credit');
+  eq(multiEntries[1]?.type, 'payment', 'Second clause keeps payment');
+
+  // 7. Plan validation rejects hallucinated money and unsupported actions.
+  eq(bestCustomerMatch('Rameesh', ['Ramesh', 'Suresh']), 'Ramesh', 'Unique fuzzy name match is repaired');
+  eq(bestCustomerMatch('Ram', ['Ramesh']), null, 'Too-short names are never force-matched');
+  eq(bestCustomerMatch('Devi', ['Ravi', 'Neha']), null, 'No clear name match stays unresolved');
+
+  const hallu = brain._validatePlan(JSON.stringify({
+    action: 'entry', customerName: 'Neha',
+    entries: [{ amount: 999, type: 'credit' }], confidence: 0.9,
+  }), { text: 'Neha ka 340 udhaar' });
+  eq(hallu, null, 'An amount not spoken in the sentence is rejected');
+
+  const unsupported = brain._validatePlan(JSON.stringify({
+    action: 'unknown', customerName: null, entries: [], confidence: 0.2,
+  }), { text: 'theek hai' });
+  eq(unsupported, null, 'Unknown action stays unknown');
+
+  const queryPlan = brain._validatePlan(JSON.stringify({
+    action: 'query', customerName: 'Neha', entries: [], query: 'customer_balance', confidence: 0.8,
+  }), { text: 'Neha ka kitna baaki hai' });
+  eq(queryPlan?.query, 'customer_balance', 'Valid query plan is accepted');
+
+  const badQuery = brain._validatePlan(JSON.stringify({
+    action: 'query', customerName: '', entries: [], query: 'weather', confidence: 0.8,
+  }), { text: 'mausam kaisa hai' });
+  eq(badQuery, null, 'Unknown query kind is rejected');
+
+  // 8. Without a brain the same sentence stays unknown: nothing is invented.
   const plainAgent = new KhataAgent({ ledger, now: () => new Date('2026-11-11T10:00:00') });
   const plain = await plainAgent.handleAsync('theek hai');
   eq(plain.intent, 'unknown', 'No brain and no parse means no entry');
