@@ -3136,17 +3136,57 @@
       return blob;
     }
 
-    // Fallback browser speech synthesis for testing/offline
+    function getBestNaturalVoice() {
+      if (!('speechSynthesis' in window)) return null;
+      const voices = window.speechSynthesis.getVoices() || [];
+      if (voices.length === 0) return null;
+
+      // 1. Natural online Hindi voices (Edge/Chrome Natural Swara/Madhur/Google)
+      const naturalHindi = voices.find(v => (v.lang === 'hi-IN' || v.lang.startsWith('hi')) &&
+        (v.name.includes('Natural') || v.name.includes('Online') || v.name.includes('Google') || v.name.includes('Swara') || v.name.includes('Madhur')));
+      if (naturalHindi) return naturalHindi;
+
+      // 2. Any Hindi voice
+      const anyHindi = voices.find(v => v.lang === 'hi-IN' || v.lang.startsWith('hi'));
+      if (anyHindi) return anyHindi;
+
+      // 3. Indian English natural voice
+      const naturalIndianEng = voices.find(v => (v.lang === 'en-IN' || v.lang.startsWith('en-IN')) &&
+        (v.name.includes('Natural') || v.name.includes('Online') || v.name.includes('Google') || v.name.includes('Neerja') || v.name.includes('Prabhat')));
+      if (naturalIndianEng) return naturalIndianEng;
+
+      return voices.find(v => v.lang.startsWith('hi') || v.lang.startsWith('en')) || voices[0] || null;
+    }
+
+    // Natural human-like speech synthesis
     function speakText(text) {
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
+      if (!('speechSynthesis' in window) || !text) return;
+      window.speechSynthesis.cancel();
+
+      // Convert currency symbols to Hindi words so the voice doesn't pronounce "Indian Rupee Sign"
+      const cleanSpoken = text
+        .replace(/₹\s*(\d+)/g, '$1 rupaye ')
+        .replace(/₹/g, 'rupaye ')
+        .trim();
+
+      const utterance = new SpeechSynthesisUtterance(cleanSpoken);
+      const voice = getBestNaturalVoice();
+      if (voice) {
+        utterance.voice = voice;
+        utterance.lang = voice.lang;
+      } else {
         utterance.lang = 'hi-IN';
-        utterance.rate = 1.0;
-        aiSpeakingToast.classList.add('visible');
-        utterance.onend = () => aiSpeakingToast.classList.remove('visible');
-        window.speechSynthesis.speak(utterance);
       }
+
+      // 0.92 rate and 1.04 pitch give a relaxed, polite, natural conversational cadence
+      utterance.rate = 0.92;
+      utterance.pitch = 1.04;
+
+      aiSpeakingToast.classList.add('visible');
+      utterance.onend = () => aiSpeakingToast.classList.remove('visible');
+      utterance.onerror = () => aiSpeakingToast.classList.remove('visible');
+
+      window.speechSynthesis.speak(utterance);
     }
 
     // ==========================================================================
