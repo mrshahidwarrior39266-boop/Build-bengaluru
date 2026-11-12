@@ -36,10 +36,15 @@ const wss = new WebSocketServer({ server, path: '/ws' });
 const PORT = Number(process.env.PORT || 3000);
 const DB_PATH = process.env.KHATA_DB || join(__dirname, 'bolti-bahi.db');
 
-// A key entered in the app is stored beside the ledger with mode 0600.
-// An environment key still wins, so deployments can stay secret-managed.
-const keyStore = new KeyStore({ file: join(dirname(DB_PATH), '.gnani-key') });
+// In-app Gnani & LLM keys stored beside the ledger with mode 0600.
+// Environment keys still win, so deployments can stay secret-managed.
+const keyStore = new KeyStore({ file: process.env.GNANI_KEY_FILE || join(dirname(DB_PATH), '.gnani-key') });
 let GNANI_API_KEY = keyStore.get();
+const llmKeyStore = new KeyStore({
+  file: join(dirname(DB_PATH), '.llm-key'),
+  envKey: process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY || process.env.OPENROUTER_API_KEY || process.env.XAI_API_KEY || process.env.LLM_API_KEY || '',
+});
+let ACTIVE_LLM_KEY = llmKeyStore.get();
 const RETENTION_MINUTES = Number(process.env.TRANSCRIPT_RETENTION_MINUTES || 120);
 const ALLOW_RESET = process.env.ENABLE_RESET === '1' || process.env.NODE_ENV === 'test';
 
@@ -54,9 +59,9 @@ const registry = new StoreRegistry({
 const googleAuth = new GoogleAuth();
 const ledger = registry.ledgerFor('default');
 
-// Optional Grok fallback for phrasing the local parser cannot read. Off unless a
+// Optional Grok/Groq/Gemini fallback for phrasing the local parser cannot read. Off unless a
 // key is configured; the server never sends the key to the browser.
-const llm = new LlmBrain();
+let llm = new LlmBrain({ apiKey: ACTIVE_LLM_KEY || undefined });
 const agentFor = (storeLedger) => new KhataAgent({ ledger: storeLedger, brain: llm });
 
 app.use(express.json({ limit: '2mb' }));
@@ -357,12 +362,160 @@ app.delete('/api/settings/gnani-key', (req, res) => {
   return res.json({ success: true, configured: Boolean(GNANI_API_KEY), source: keyStore.source() });
 });
 
+// Free LLM key (Groq, Gemini, OpenRouter) configured from the app
+app.get('/api/settings/llm-key', (req, res) => {
+  res.json({
+    success: true,
+    configured: Boolean(ACTIVE_LLM_KEY),
+    provider: llm.provider,
+    model: llm.model,
+    source: llmKeyStore.source(),
+  });
+});
+
+app.post('/api/settings/llm-key', (req, res) => {
+  if (!isSameOrigin(req)) {
+    return res.status(403).json({ success: false, error: 'Same-origin request required.' });
+  }
+  if (llmKeyStore.source() === 'environment') {
+    return res.status(409).json({
+      success: false,
+      error: 'Key server environment se aa rahi hai. Wahan badalni hogi.',
+    });
+  }
+
+  try {
+    llmKeyStore.set(req.body?.key);
+    ACTIVE_LLM_KEY = llmKeyStore.get();
+    llm = new LlmBrain({ apiKey: ACTIVE_LLM_KEY || undefined });
+    console.log('[Settings] LLM key saved from the app');
+    return res.json({
+      success: true,
+      configured: Boolean(ACTIVE_LLM_KEY),
+      provider: llm.provider,
+      model: llm.model,
+      source: llmKeyStore.source(),
+    });
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/settings/llm-key', (req, res) => {
+  if (!isSameOrigin(req)) {
+    return res.status(403).json({ success: false, error: 'Same-origin request required.' });
+  }
+  if (llmKeyStore.source() === 'environment') {
+    return res.status(409).json({
+      success: false,
+      error: 'Key server environment se aa rahi hai. Wahan hataani hogi.',
+    });
+  }
+  llmKeyStore.clear();
+  ACTIVE_LLM_KEY = llmKeyStore.get();
+  llm = new LlmBrain({ apiKey: ACTIVE_LLM_KEY || undefined });
+  return res.json({ success: true, configured: Boolean(ACTIVE_LLM_KEY), source: llmKeyStore.source() });
+});
+
 // Text turn without a WebSocket (curl, judge script, accessibility fallback).
 app.post('/api/text', async (req, res) => {
   const text = String(req.body?.text || '').trim();
   if (!text) return res.status(400).json({ success: false, error: 'text is required' });
   const result = await agentFor(req.ledger).handleAsync(text);
   return res.json({ success: true, ...result, state: req.ledger.getUiState() });
+});
+
+// ---------------------------------------------------------------------------
+// High-Fidelity Human-Like Neural TTS (/api/tts)
+// 1. Synthesizes via Gnani Timbre if GNANI_API_KEY is configured
+// 2. Synthesizes via Google Neural Hindi voice if no key (crystal-clear human voice)
+// ---------------------------------------------------------------------------
+const ttsCache = new Map();
+
+app.get('/api/tts', async (req, res) => {
+  const text = String(req.query.text || '').trim();
+  if (!text) return res.status(400).send('text is required');
+
+  const clean = text
+    .replace(/₹\s*(\d+)/g, '$1 rupaye ')
+    .replace(/₹/g, 'rupaye ')
+    .slice(0, 600);
+
+  const cacheKey = `${GNANI_API_KEY ? 'gnani' : 'neural'}:${clean}`;
+  if (ttsCache.has(cacheKey)) {
+    const cached = ttsCache.get(cacheKey);
+    res.set({
+      'Content-Type': cached.contentType,
+      'Content-Length': cached.buffer.length,
+      'Cache-Control': 'public, max-age=86400',
+    });
+    return res.end(cached.buffer);
+  }
+
+  // 1. Gnani Timbre if API key is active
+  if (GNANI_API_KEY) {
+    try {
+      const tts = new GnaniTTS(GNANI_API_KEY);
+      const chunks = await tts.synthesize(clean, {
+        voice: process.env.GNANI_TTS_VOICE || 'Shivani',
+        model: 'timbre-v3.0',
+        language: process.env.GNANI_TTS_LANGUAGE || 'hi-IN',
+        speed: Number(process.env.GNANI_TTS_SPEED || 0.94),
+        container: 'wav',
+      });
+      if (chunks.length > 0) {
+        const audioBuf = Buffer.concat(chunks.map((c) => Buffer.from(c.audio, 'base64')));
+        if (ttsCache.size > 200) ttsCache.clear();
+        ttsCache.set(cacheKey, { buffer: audioBuf, contentType: 'audio/wav' });
+        res.set({
+          'Content-Type': 'audio/wav',
+          'Content-Length': audioBuf.length,
+          'Cache-Control': 'public, max-age=86400',
+        });
+        return res.end(audioBuf);
+      }
+    } catch (gnaniErr) {
+      console.warn('[TTS] Gnani synthesis failed, using Neural Hindi TTS:', gnaniErr.message);
+    }
+  }
+
+  // 2. High-fidelity Neural Hindi Voice
+  try {
+    const segments = clean.match(/[^.!?।\n]+[.!?।\n]?/g) || [clean];
+    const buffers = [];
+
+    for (const segment of segments) {
+      const trimmed = segment.trim();
+      if (!trimmed) continue;
+      const url = `https://translate.google.com/translate_tts?ie=UTF-8&tl=hi&client=tw-ob&q=${encodeURIComponent(trimmed)}`;
+      const resp = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Referer': 'https://translate.google.com/',
+        },
+      });
+      if (resp.ok) {
+        const ab = await resp.arrayBuffer();
+        buffers.push(Buffer.from(ab));
+      }
+    }
+
+    if (buffers.length > 0) {
+      const fullBuffer = Buffer.concat(buffers);
+      if (ttsCache.size > 200) ttsCache.clear();
+      ttsCache.set(cacheKey, { buffer: fullBuffer, contentType: 'audio/mpeg' });
+      res.set({
+        'Content-Type': 'audio/mpeg',
+        'Content-Length': fullBuffer.length,
+        'Cache-Control': 'public, max-age=86400',
+      });
+      return res.end(fullBuffer);
+    }
+  } catch (err) {
+    console.error('[TTS] Neural voice error:', err.message);
+  }
+
+  return res.status(502).json({ success: false, error: 'tts_failed' });
 });
 
 /**

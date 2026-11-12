@@ -2386,6 +2386,34 @@
           <button class="suggestion-chip" id="btn-clear-settings" type="button" style="background: #FFFFFF; border-color: #E0B4B4; color: #B3261E;">Remove</button>
         </div>
 
+        <button class="suggestion-chip" id="btn-test-voice" type="button"
+          style="margin-top: 10px; width: 100%; justify-content: center; background: #FAF7F2; border-color: #2F6B4F; color: #2F6B4F; font-weight: 600; padding: 9px 14px;">
+          🔊 Awaaz sun kar dekhein (Human Voice Test)
+        </button>
+
+        <div style="margin-top: 16px; border-top: 1px solid #EFE8DE; padding-top: 14px;">
+          <label for="settings-llm-key" style="font-size: 0.78rem; font-weight: 700; color: #524B40;">FREE LLM API KEY (Groq / Gemini)</label>
+          <div style="font-size: 0.74rem; color: #7F776B; margin-bottom: 6px;">
+            Groq (Llama 3.3 70B free) ya Google AI Studio (Gemini 2.0 Flash free) key yahan daalein.
+          </div>
+          <input
+            id="settings-llm-key"
+            class="settings-input"
+            type="password"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+            placeholder="gsk_... ya AIza..."
+          />
+          <div id="settings-llm-status" style="font-size: 0.8rem; color: #6C655A; margin-bottom: 12px; line-height: 1.45;">
+            LLM status check ho raha hai...
+          </div>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <button class="btn-quick-voice-ask" id="btn-save-llm-settings" type="button">Save LLM key</button>
+            <button class="suggestion-chip" id="btn-clear-llm-settings" type="button" style="background: #FFFFFF; border-color: #E0B4B4; color: #B3261E;">Remove</button>
+          </div>
+        </div>
+
         <button class="suggestion-chip" id="btn-change-server" type="button" hidden
           style="margin-top: 12px; background: #FFFFFF; border-color: #D8CFC4;">
           🖥️ Server URL badlein (app)
@@ -2514,6 +2542,8 @@
     const settingsOverlay = document.getElementById('settings-modal-overlay');
     const settingsKeyInput = document.getElementById('settings-gnani-key');
     const settingsStatus = document.getElementById('settings-status');
+    const settingsLlmKeyInput = document.getElementById('settings-llm-key');
+    const settingsLlmStatus = document.getElementById('settings-llm-status');
 
     // Drawer & Modal Elements
     const btnToggleLedger = document.getElementById('btn-toggle-ledger');
@@ -2572,6 +2602,21 @@
       });
       document.getElementById('btn-save-settings').addEventListener('click', saveGnaniKey);
       document.getElementById('btn-clear-settings').addEventListener('click', clearGnaniKey);
+      const testVoiceBtn = document.getElementById('btn-test-voice');
+      if (testVoiceBtn) {
+        testVoiceBtn.addEventListener('click', () => {
+          speakText('नमस्ते! बोलती बही में आपका स्वागत है। मेरी आवाज़ अब बिल्कुल साफ़ और इंसान जैसी है।');
+        });
+      }
+      const saveLlmBtn = document.getElementById('btn-save-llm-settings');
+      if (saveLlmBtn) saveLlmBtn.addEventListener('click', saveLlmKey);
+      const clearLlmBtn = document.getElementById('btn-clear-llm-settings');
+      if (clearLlmBtn) clearLlmBtn.addEventListener('click', clearLlmKey);
+      if (settingsLlmKeyInput) {
+        settingsLlmKeyInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); saveLlmKey(); }
+        });
+      }
       settingsKeyInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { e.preventDefault(); saveGnaniKey(); }
       });
@@ -3158,10 +3203,47 @@
       return voices.find(v => v.lang.startsWith('hi') || v.lang.startsWith('en')) || voices[0] || null;
     }
 
-    // Natural human-like speech synthesis
-    function speakText(text) {
-      if (!('speechSynthesis' in window) || !text) return;
-      window.speechSynthesis.cancel();
+    let activeSpeechAudio = null;
+
+    function speakWithBrowserTts(cleanSpoken) {
+      if (!('speechSynthesis' in window) || !cleanSpoken) return;
+      try {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(cleanSpoken);
+        const voice = getBestNaturalVoice();
+        if (voice) {
+          utterance.voice = voice;
+          utterance.lang = voice.lang;
+        } else {
+          utterance.lang = 'hi-IN';
+        }
+        utterance.rate = 0.92;
+        utterance.pitch = 1.04;
+
+        aiSpeakingToast.classList.add('visible');
+        utterance.onend = () => aiSpeakingToast.classList.remove('visible');
+        utterance.onerror = () => aiSpeakingToast.classList.remove('visible');
+        window.speechSynthesis.speak(utterance);
+      } catch (err) {
+        console.warn('Browser TTS failed:', err);
+        aiSpeakingToast.classList.remove('visible');
+      }
+    }
+
+    // High quality human-like speech synthesis
+    async function speakText(text) {
+      if (!text) return;
+
+      if (activeSpeechAudio) {
+        try {
+          activeSpeechAudio.pause();
+          activeSpeechAudio.currentTime = 0;
+        } catch (_) {}
+        activeSpeechAudio = null;
+      }
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
 
       // Convert currency symbols to Hindi words so the voice doesn't pronounce "Indian Rupee Sign"
       const cleanSpoken = text
@@ -3169,24 +3251,32 @@
         .replace(/₹/g, 'rupaye ')
         .trim();
 
-      const utterance = new SpeechSynthesisUtterance(cleanSpoken);
-      const voice = getBestNaturalVoice();
-      if (voice) {
-        utterance.voice = voice;
-        utterance.lang = voice.lang;
-      } else {
-        utterance.lang = 'hi-IN';
+      // Priority 1: High quality Neural Hindi voice from server /api/tts
+      try {
+        const audioUrl = `/api/tts?text=${encodeURIComponent(cleanSpoken)}`;
+        const audio = new Audio(audioUrl);
+        activeSpeechAudio = audio;
+        aiSpeakingToast.classList.add('visible');
+
+        audio.onended = () => {
+          aiSpeakingToast.classList.remove('visible');
+          activeSpeechAudio = null;
+        };
+        audio.onerror = () => {
+          aiSpeakingToast.classList.remove('visible');
+          activeSpeechAudio = null;
+          speakWithBrowserTts(cleanSpoken);
+        };
+
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          await playPromise;
+        }
+        return;
+      } catch (err) {
+        console.warn('Neural audio playback failed, falling back to browser synthesis:', err);
+        speakWithBrowserTts(cleanSpoken);
       }
-
-      // 0.92 rate and 1.04 pitch give a relaxed, polite, natural conversational cadence
-      utterance.rate = 0.92;
-      utterance.pitch = 1.04;
-
-      aiSpeakingToast.classList.add('visible');
-      utterance.onend = () => aiSpeakingToast.classList.remove('visible');
-      utterance.onerror = () => aiSpeakingToast.classList.remove('visible');
-
-      window.speechSynthesis.speak(utterance);
     }
 
     // ==========================================================================
@@ -3622,16 +3712,18 @@
       }
     }
     // ==========================================================================
-    // 12. IN-APP SETTINGS: GNANI API KEY
+    // 12. IN-APP SETTINGS: GNANI & FREE LLM API KEYS
     // ==========================================================================
     function openSettingsModal() {
       settingsOverlay.classList.add('active');
       refreshKeySettings();
+      refreshLlmKeySettings();
     }
 
     function closeSettingsModal() {
       settingsOverlay.classList.remove('active');
       settingsKeyInput.value = '';
+      if (settingsLlmKeyInput) settingsLlmKeyInput.value = '';
     }
 
     function renderKeyStatus(data) {
@@ -3639,9 +3731,9 @@
       if (data.source === 'environment') {
         settingsStatus.textContent = 'Key server environment se aa rahi hai, isliye app se badli nahi ja sakti.';
       } else if (data.configured) {
-        settingsStatus.textContent = '✅ Key set hai. Mic daba kar bolein — Prisma STT aur Timbre TTS chalu hain.';
+        settingsStatus.textContent = '✅ Gnani active hai: Prisma STT + Timbre TTS voice.';
       } else {
-        settingsStatus.textContent = 'Key set nahi hai. Abhi mic browser ki speech recognition par chalega.';
+        settingsStatus.textContent = 'Gnani key set nahi hai. High-fidelity Neural Hindi voice chalu hai.';
       }
     }
 
@@ -3652,6 +3744,70 @@
         renderKeyStatus(await res.json());
       } catch (err) {
         settingsStatus.textContent = 'Settings load nahi hue. Server se sampark check karein.';
+      }
+    }
+
+    function renderLlmKeyStatus(data) {
+      if (settingsLlmKeyInput) settingsLlmKeyInput.value = '';
+      if (!settingsLlmStatus) return;
+      if (data.source === 'environment') {
+        settingsLlmStatus.textContent = `Key server environment (${data.provider || 'LLM'}) se aa rahi hai.`;
+      } else if (data.configured) {
+        settingsLlmStatus.textContent = `✅ Free LLM active hai: ${data.provider} (${data.model})`;
+      } else {
+        settingsLlmStatus.textContent = 'LLM key set nahi hai. Local intelligent parser chalega.';
+      }
+    }
+
+    async function refreshLlmKeySettings() {
+      if (!settingsLlmStatus) return;
+      settingsLlmStatus.textContent = 'LLM status check ho raha hai...';
+      try {
+        const res = await fetch('/api/settings/llm-key', { cache: 'no-store' });
+        renderLlmKeyStatus(await res.json());
+      } catch (err) {
+        settingsLlmStatus.textContent = 'LLM status load nahi hua.';
+      }
+    }
+
+    async function saveLlmKey() {
+      const key = settingsLlmKeyInput ? settingsLlmKeyInput.value.trim() : '';
+      if (!key) {
+        if (settingsLlmStatus) settingsLlmStatus.textContent = 'Pehle LLM key daalein.';
+        return;
+      }
+      if (settingsLlmStatus) settingsLlmStatus.textContent = 'Save ho rahi hai...';
+      try {
+        const res = await fetch('/api/settings/llm-key', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          if (settingsLlmStatus) settingsLlmStatus.textContent = data.error || 'Key save nahi hui.';
+          return;
+        }
+        renderLlmKeyStatus(data);
+        appendAIMessage(`Free LLM key save ho gayi (${data.provider} - ${data.model}).`);
+      } catch (err) {
+        if (settingsLlmStatus) settingsLlmStatus.textContent = 'Server se sampark nahi hua.';
+      }
+    }
+
+    async function clearLlmKey() {
+      if (settingsLlmStatus) settingsLlmStatus.textContent = 'Key hata rahi hai...';
+      try {
+        const res = await fetch('/api/settings/llm-key', { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) {
+          if (settingsLlmStatus) settingsLlmStatus.textContent = data.error || 'Key nahi hati.';
+          return;
+        }
+        renderLlmKeyStatus(data);
+        appendAIMessage('LLM key hata di gayi.');
+      } catch (err) {
+        if (settingsLlmStatus) settingsLlmStatus.textContent = 'Server se sampark nahi hua.';
       }
     }
 

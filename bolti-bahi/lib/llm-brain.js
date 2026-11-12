@@ -26,7 +26,8 @@ export const PROVIDERS = {
   xai: { baseUrl: 'https://api.x.ai/v1', model: 'grok-4-fast' },
 };
 
-const DEFAULT_PROVIDER = 'groq';
+const DEFAULT_PROVIDER = process.env.LLM_PROVIDER
+  || (process.env.GROQ_API_KEY ? 'groq' : (process.env.GEMINI_API_KEY ? 'gemini' : 'xai'));
 
 export const QUERY_KINDS = new Set([
   'customer_balance',
