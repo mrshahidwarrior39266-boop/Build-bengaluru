@@ -1870,14 +1870,18 @@
     .bottom-controls-section {
       background: #fff;
       border-top: 1px solid var(--line);
-      padding-bottom: 6px;
+    }
+    body[data-tab="baat"] .bottom-controls-section {
+      padding-bottom: calc(var(--tab-h) + env(safe-area-inset-bottom, 0px) + 16px);
     }
 
     @media (min-width: 760px) {
       body { background: #EFEAE2; }
       header { max-width: 720px; width: 100%; margin: 0 auto; border-radius: 0 0 4px 4px; }
       .app-main { padding-bottom: 24px; }
-      body[data-tab="baat"] .bottom-controls-section { padding-bottom: 10px; }
+      body[data-tab="baat"] .bottom-controls-section {
+        padding-bottom: calc(var(--tab-h) + env(safe-area-inset-bottom, 0px) + 16px);
+      }
     }
   </style>
 </head>
@@ -3050,14 +3054,39 @@
         }
 
         const rawData = base64ToArrayBuffer(base64Audio);
-        let audioBuffer;
+        const bytes = new Uint8Array(rawData);
+        let audioBuffer = null;
 
-        try {
-          audioBuffer = await ttsAudioContext.decodeAudioData(rawData);
-        } catch (decodeErr) {
-          // If raw PCM16 was sent without WAV header, wrap it in a WAV header
-          const wavWithHeader = wrapRawPcmInWav(new Uint8Array(rawData), 16000);
-          audioBuffer = await ttsAudioContext.decodeAudioData(wavWithHeader.buffer);
+        const isWav = bytes.length >= 12 &&
+          bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 && // 'RIFF'
+          bytes[8] === 0x57 && bytes[9] === 0x41 && bytes[10] === 0x56 && bytes[11] === 0x45; // 'WAVE'
+
+        if (isWav) {
+          try {
+            audioBuffer = await ttsAudioContext.decodeAudioData(rawData.slice(0));
+          } catch (decodeErr) {
+            console.warn('[BoltiBahi] WAV decode failed, falling back to PCM:', decodeErr);
+          }
+        }
+
+        if (!audioBuffer) {
+          // Process as 16kHz 16-bit mono raw PCM (Gnani Timbre streaming default)
+          const pcmOffset = isWav ? 44 : 0;
+          const availableBytes = Math.max(0, bytes.byteLength - pcmOffset);
+          const sampleCount = Math.floor(availableBytes / 2);
+          if (sampleCount > 0) {
+            const pcm16 = new Int16Array(bytes.buffer, bytes.byteOffset + pcmOffset, sampleCount);
+            audioBuffer = ttsAudioContext.createBuffer(1, sampleCount, 16000);
+            const channel = audioBuffer.getChannelData(0);
+            for (let i = 0; i < sampleCount; i++) {
+              channel[i] = pcm16[i] < 0 ? pcm16[i] / 32768.0 : pcm16[i] / 32767.0;
+            }
+          }
+        }
+
+        if (!audioBuffer) {
+          playNextAudioInQueue();
+          return;
         }
 
         const source = ttsAudioContext.createBufferSource();
@@ -3700,6 +3729,9 @@
 
       // ---------------------------------------------------------------- tabs
       function setTab(tab) {
+        if (tab !== 'baat' && isRecording && typeof stopRecording === 'function') {
+          stopRecording();
+        }
         currentTab = tab;
         document.body.dataset.tab = tab;
         document.querySelectorAll('.view').forEach((view) => {
